@@ -128,3 +128,10 @@ tests/                  Build/render verification
 
 This repository is currently intended for academic project development. Add an
 open-source license before distributing or reusing it outside the project team.
+
+## GPS + 4G integration (smartstep_v2)
+
+The real-device screen and standalone authenticated GPS API are implemented as a first integration step.
+See [GPS setup and deployment](gps-api/README.md). The existing dashboard remains a clearly labelled demo.
+The API must be deployed and the device configured before real data can appear. Hardware integration and end-to-end verification are pending.
+

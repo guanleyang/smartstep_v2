@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
+import RealDevice from "./RealDevice";
+
 type Tab = "home" | "map" | "alerts" | "settings";
 type Detail = "battery" | "device" | null;
 
@@ -636,6 +638,7 @@ function SideNav({ tab, setTab, unread, name, collapsed, onToggle, onLogout }: {
 }
 
 export default function SmartStepApp() {
+  const [realDevice, setRealDevice] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
   const [email, setEmail] = useState("demo@smartstep.com");
   const [tab, setTab] = useState<Tab>("home");
@@ -658,7 +661,8 @@ export default function SmartStepApp() {
   
   // 模拟电池消耗
   useEffect(() => { 
-    if (!loggedIn) return; 
+    if (realDevice) return <RealDevice onDemo={() => setRealDevice(false)} />;
+  if (!loggedIn) return; 
     const id = window.setInterval(() => setBattery(v => v <= 10 ? 95 : v - 1), 5000); 
     return () => window.clearInterval(id); 
   }, [loggedIn]);
@@ -678,6 +682,7 @@ export default function SmartStepApp() {
   return (
     // 移动端预留底部导航高度 pb-[68px]
     <main className="min-h-dvh bg-[#F0F2F5] pb-[68px] md:pb-0">
+      <div className="relative z-[80] bg-amber-100 p-3 text-center text-sm text-slate-900">Demo data · <button className="font-bold underline" onClick={() => { setDetail(null); setRealDevice(true); }}>Connect real GPS device</button></div>
       
       {/* 桌面侧边栏：移动端隐藏 */}
       <div className="hidden md:block">
@@ -704,3 +709,4 @@ export default function SmartStepApp() {
     </main>
   );
 }
+
