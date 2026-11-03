@@ -1,5 +1,5 @@
 // Standalone v2 Worker. Deploy after running hybrid-schema.sql.
-const ZONES = Object.freeze({TR62_inside:'TR62 教室内',TR63_door:'TR63 门口',TR65_door:'TR65 门口',TR67_door:'TR67 门口',TR69_door:'TR69 门口','SS2-3_elevator_B1':'B1 · 电梯 SS2-3',SS2_stairs_to_rooftop_B1:'B1 · SS2 Stairs to 天台','SS2-3_elevator_L1':'1楼 · 电梯 SS2-3',EEE_White_Door_B3:'B3 · EEE White Door',UNDER_LKC_LT_B3:'B3 · UNDER LKC LT',Canteen_B_South_Spine:'Canteen B South Spine'});
+const ZONES = Object.freeze({Glys_Room:"Gly's Room",TR62_inside:'TR62 教室内',TR63_door:'TR63 门口',TR65_door:'TR65 门口',TR67_door:'TR67 门口',TR69_door:'TR69 门口','SS2-3_elevator_B1':'B1 · 电梯 SS2-3',SS2_stairs_to_rooftop_B1:'B1 · SS2 Stairs to 天台','SS2-3_elevator_L1':'1楼 · 电梯 SS2-3',EEE_White_Door_B3:'B3 · EEE White Door',UNDER_LKC_LT_B3:'B3 · UNDER LKC LT',Canteen_B_South_Spine:'Canteen B South Spine'});
 export function normalize(body, device, now=Date.now()) {
   const number=(v,lo,hi)=>typeof v==='number' && Number.isFinite(v) && v>=lo && v<=hi;
   if(!body || body.device_id!==device || !['gps','wifi','lte','unavailable'].includes(body.source)) throw Error('Invalid source/device');

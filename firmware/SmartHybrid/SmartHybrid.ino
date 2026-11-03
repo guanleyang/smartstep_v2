@@ -33,6 +33,7 @@
 #include <math.h>
 #include <WiFi.h>
 #include "fingerprint_model.h"
+#include "glys_room.h"
 #include "secrets.h"
 #include "root_ca.h"
 
@@ -743,6 +744,22 @@ bool indoorFix(int &zone) {
         String b=WiFi.BSSIDstr(i);
         for(int j=0;j<FEATURE_COUNT;j++)if(b.equalsIgnoreCase(FEATURE_BSSID[j])){obs[j]=WiFi.RSSI(i);break;}
     }
+    // Room-specific fingerprint; do not change the frozen NTU model.
+    float roomSum=0;int roomSeen=0;bool humidifierSeen=false;
+    for(int j=0;j<ROOM_FEATURE_COUNT;j++) {
+        float strength=-100;
+        for(int i=0;i<count;i++)if(WiFi.BSSIDstr(i).equalsIgnoreCase(ROOM_BSSID[j])) {
+            strength=WiFi.RSSI(i);if(strength>-90)roomSeen++;break;
+        }
+        if(String(ROOM_BSSID[j]).equalsIgnoreCase(ROOM_HUMIDIFIER)&&strength>-75)humidifierSeen=true;
+        float delta=strength-ROOM_TEMPLATE[j];roomSum+=delta*delta;
+    }
+    bool roomMatch=humidifierSeen&&roomSeen>=2&&sqrtf(roomSum/ROOM_FEATURE_COUNT)<=ROOM_LIMIT;
+    if(roomMatch) {
+        WiFi.scanDelete();
+        if(wifiCandidate==ZONE_COUNT)wifiConfirm++;else{wifiCandidate=ZONE_COUNT;wifiConfirm=1;}
+        zone=ZONE_COUNT;return wifiConfirm>=2;
+    }
     WiFi.scanDelete();int visible=0;
     for(int j=0;j<FEATURE_COUNT;j++)if(obs[j]>-90)visible++;
     int best=-1;float bestScore=1e6;
@@ -795,8 +812,8 @@ void loop() {
         int zone=-1;
         if(indoorFix(zone)) {
             body="{\"device_id\":\"shoe_001\",\"source\":\"wifi\",\"zone_id\":\"";
-            body+=HYBRID_ZONE_ID[zone];body+="\"}";
-            Serial.print("SOURCE: WIFI | ");Serial.println(ZONE_LABEL[zone]);
+            body+=(zone==ZONE_COUNT?"Glys_Room":HYBRID_ZONE_ID[zone]);body+="\"}";
+            Serial.print("SOURCE: WIFI | ");Serial.println(zone==ZONE_COUNT?"Gly's Room":ZONE_LABEL[zone]);
         }else {
             float a=0;
             if(isLTERegistered()&&lteFix(lat,lon,a)) {

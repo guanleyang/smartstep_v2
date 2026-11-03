@@ -8,8 +8,8 @@ test('GPS, indoor, LTE and unavailable are mutually exclusive payloads',()=>{
  const lte=normalize({...base,source:'lte',accuracy_m:550},'shoe_001');assert.equal(lte.accuracy_m,550);
  assert.equal(normalize({...base,source:'unavailable'},'shoe_001').latitude,undefined);
 });
-test('reject invalid, stale, swapped coordinates and development room',()=>{
- for(const b of [{...base,latitude:103.6},{...base,source:'wifi',zone_id:'Glys_Room'},{...base,source:'lte'},{...base,recorded_at:1},{...base,device_id:'other'}])assert.throws(()=>normalize(b,'shoe_001'));
+test('reject invalid, stale, swapped coordinates and unknown rooms',()=>{
+ for(const b of [{...base,latitude:103.6},{...base,source:'wifi',zone_id:'not_a_collected_zone'},{...base,source:'lte'},{...base,recorded_at:1},{...base,device_id:'other'}])assert.throws(()=>normalize(b,'shoe_001'));
 });
 test('auth and storage roundtrip preserves source changes',async()=>{
  let row;const u='u'.repeat(64),r='r'.repeat(64);
@@ -20,3 +20,5 @@ test('auth and storage roundtrip preserves source changes',async()=>{
  assert.equal((await api.fetch(request('POST',u,b),env)).status,200);
  const response=await api.fetch(request('GET',r),env);const data=await response.json();assert.equal(data.source,b.source);assert.equal(response.headers.get('Cache-Control'),'no-store');}
 });
+
+test("Glys Room accepted without coordinates",()=>{const r=normalize({...base,source:"wifi",zone_id:"Glys_Room"},"shoe_001");assert.equal(r.zone_name,"Gly\'s Room");assert.equal(r.latitude,undefined);});
