@@ -744,21 +744,17 @@ bool indoorFix(int &zone) {
         String b=WiFi.BSSIDstr(i);
         for(int j=0;j<FEATURE_COUNT;j++)if(b.equalsIgnoreCase(FEATURE_BSSID[j])){obs[j]=WiFi.RSSI(i);break;}
     }
-    // Room-specific fingerprint; do not change the frozen NTU model.
-    float roomSum=0;int roomSeen=0;bool humidifierSeen=false;
-    for(int j=0;j<ROOM_FEATURE_COUNT;j++) {
-        float strength=-100;
-        for(int i=0;i<count;i++)if(WiFi.BSSIDstr(i).equalsIgnoreCase(ROOM_BSSID[j])) {
-            strength=WiFi.RSSI(i);if(strength>-90)roomSeen++;break;
+    // User-requested home test rule: any sighting of this humidifier is enough.
+    // Match exact SSID, or the BSSID captured during the user's room survey.
+    bool humidifierSeen=false;
+    for(int i=0;i<count;i++) {
+        if(WiFi.SSID(i)=="华为二代加湿器" || WiFi.BSSIDstr(i).equalsIgnoreCase(ROOM_HUMIDIFIER)) {
+            humidifierSeen=true;break;
         }
-        if(String(ROOM_BSSID[j]).equalsIgnoreCase(ROOM_HUMIDIFIER)&&strength>-75)humidifierSeen=true;
-        float delta=strength-ROOM_TEMPLATE[j];roomSum+=delta*delta;
     }
-    bool roomMatch=humidifierSeen&&roomSeen>=2&&sqrtf(roomSum/ROOM_FEATURE_COUNT)<=ROOM_LIMIT;
-    if(roomMatch) {
-        WiFi.scanDelete();
-        if(wifiCandidate==ZONE_COUNT)wifiConfirm++;else{wifiCandidate=ZONE_COUNT;wifiConfirm=1;}
-        zone=ZONE_COUNT;return wifiConfirm>=2;
+    if(humidifierSeen) {
+        WiFi.scanDelete();wifiCandidate=ZONE_COUNT;wifiConfirm=2;
+        zone=ZONE_COUNT;return true;
     }
     WiFi.scanDelete();int visible=0;
     for(int j=0;j<FEATURE_COUNT;j++)if(obs[j]>-90)visible++;
