@@ -1,15 +1,15 @@
 "use client";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import LiveDashboard from "./LiveDashboard";
+import { createContext, ReactNode, useContext } from "react";
 
-type Location = {
+export type Location = {
   device_id: string; latitude?: number; longitude?: number;
   source: "gps" | "wifi" | "lte" | "unavailable"; zone_name?: string; accuracy_m?: number;
   pdop: number | null; battery_percent: number | null;
   recorded_at: number; received_at: number; stale: boolean;
 };
 
-function DeviceMap({ location }: { location: Location }) {
+export function DeviceMap({ location, compact = false }: { location: Location; compact?: boolean }) {
   const element = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -24,20 +24,23 @@ function DeviceMap({ location }: { location: Location }) {
         document.head.appendChild(css);
       }
       const point: [number, number] = [location.latitude!, location.longitude!];
-      map = L.map(element.current).setView(point, location.source === "lte" ? 15 : 17);
+      map = L.map(element.current, { zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false }).setView(point, location.source === "lte" ? 15 : 17);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         { attribution: "© OpenStreetMap contributors", maxZoom: 19 }).addTo(map);
       if (location.source === "lte" && location.accuracy_m) {
         const circle = L.circle(point, { radius: location.accuracy_m, color: "#d97706", fillOpacity: .15 }).addTo(map);
-        map.fitBounds(circle.getBounds(), { padding: [24,24], maxZoom: 16 });
+        map.fitBounds(circle.getBounds(), { padding: [24,24], maxZoom: 16, animate: false });
       } else L.circleMarker(point, { radius: 10, color: "#3949AB", fillOpacity: .8 }).addTo(map);
     }).catch(() => { if (!disposed) setError("地图暂时无法加载，请查看下方坐标。"); });
     return () => { disposed = true; map?.remove(); };
-  }, [location.latitude, location.longitude, location.source, location.accuracy_m]);
-  return <div className="ss-map-wrap"><div ref={element} className="ss-map" aria-label="Latest reported shoe location" />{error && <p className="ss-map-error" role="status">{error}</p>}</div>;
+  }, [location.latitude, location.longitude, location.source, location.accuracy_m, compact]);
+  return <div className="relative"><div ref={element} className="w-full rounded-xl" style={{ height: compact ? 250 : 520 }} aria-label="Latest reported shoe location" />{error && <p className="text-sm text-amber-700 mt-2" role="status">{error}</p>}</div>;
 }
 
-export default function RealDevice({ onDemo: _onDemo }: { onDemo: () => void }) {
+type LiveState = { location: Location | null; status: string; stale: boolean; error: string; connected: boolean; loading: boolean; form: ReactNode; query: () => void; disconnect: () => void };
+const LiveContext = createContext<LiveState | null>(null);
+export function useLiveDevice() { const state = useContext(LiveContext); if (!state) throw Error("Missing device provider"); return state; }
+export default function RealDevice({ children }: { children: ReactNode }) {
   const [url, setUrl] = useState("https://smartstep-gps.guanleyang007.workers.dev");
   const [device, setDevice] = useState("shoe_001");
   const [token, setToken] = useState("");
@@ -94,14 +97,13 @@ export default function RealDevice({ onDemo: _onDemo }: { onDemo: () => void }) 
   }
   const stale = !!location && (location.stale || now - location.received_at > 120000 || now - location.recorded_at > 120000);
   const connectionStatus = !connection ? "尚未连接" : failed ? "连接异常" : !reachable ? "正在连接" : !location ? "等待设备上报" : stale ? "位置已过期" : location.source === "unavailable" ? "正在定位" : "设备数据已连接";
-  const form = <form onSubmit={connect} className="ss-form">
-    <label>设备编号<input required value={device} onChange={e => setDevice(e.target.value)} autoComplete="off" /></label>
-    <label>查看凭证<input required type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} placeholder="粘贴凭证文件中的 read 值" /></label>
-    <details><summary>高级连接设置</summary><label>服务地址<input required type="url" value={url} onChange={e => setUrl(e.target.value)} /></label></details>
-    <button className="ss-button ss-primary">{connection ? "重新连接" : "连接我的 SmartStep"}<span aria-hidden="true">→</span></button>
-    <p className="ss-footnote">查看凭证仅保留在本次页面会话中，刷新后需要重新输入。</p>
+  const form = <form onSubmit={connect} className="grid gap-4">
+    <label className="block text-sm font-semibold text-slate-700">设备编号<input className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-normal" required value={device} onChange={e => setDevice(e.target.value)} autoComplete="off" /></label>
+    <label className="block text-sm font-semibold text-slate-700">查看凭证<input className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-normal" required type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} placeholder="粘贴凭证文件中的 read 值" /></label>
+    <details><summary>高级连接设置</summary><label className="block text-sm font-semibold text-slate-700">服务地址<input className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-normal" required type="url" value={url} onChange={e => setUrl(e.target.value)} /></label></details>
+    <button className="rounded-xl bg-[#1A237E] p-3 text-sm font-bold text-white">{connection ? "重新连接" : "连接我的 SmartStep"}<span aria-hidden="true">→</span></button>
+    <p className="text-xs text-slate-400">查看凭证仅保留在本次页面会话中，刷新后需要重新输入。</p>
   </form>;
-  return <LiveDashboard fix={location} connected={!!connection} device={connection?.device || device} stale={stale} error={failed ? status : ""} status={connectionStatus} loading={loading}
-    connectionForm={form} map={location && (location.source === "gps" || location.source === "lte") ? <DeviceMap location={location} /> : null}
-    refresh={() => setRefresh(v => v + 1)} disconnect={() => { setConnection(null); setLocation(null); setReachable(false); setFailed(false); setStatus(""); setLoading(false); }} />;
+  return <LiveContext.Provider value={{location, status: connectionStatus, stale, error: failed ? status : "", connected: !!connection, loading, form,
+    query: () => setRefresh(v => v + 1), disconnect: () => {setConnection(null);setLocation(null);setReachable(false);setFailed(false);setStatus("");setLoading(false);} }}>{children}</LiveContext.Provider>;
 }

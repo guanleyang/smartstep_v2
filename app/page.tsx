@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import RealDevice from "./RealDevice";
+import RealDevice, { DeviceMap, useLiveDevice } from "./RealDevice";
 
 type Tab = "home" | "map" | "alerts" | "settings";
 type Detail = "battery" | "device" | null;
@@ -73,7 +73,7 @@ function PageBanner({ eyebrow, title, description, icon, children }: { eyebrow: 
 }
 
 function Login({ onLogin }: { onLogin: (email: string) => void }) {
-  const [email, setEmail] = useState("demo@smartstep.com");
+  const [email, setEmail] = useState("SmartStep");
   const submit = (e: FormEvent) => { e.preventDefault(); onLogin(email || "demo@smartstep.com"); };
   return (
     <main className="flex min-h-dvh items-center justify-center bg-gradient-to-br from-[#111858] via-[#1A237E] to-[#4A5BC4] p-5">
@@ -156,205 +156,57 @@ function ZoneSummary({ setTab }: { setTab: (t: Tab) => void }) {
   );
 }
 
-function Home({ name, battery, alerts, setTab, setDetail }: { name: string; battery: number; alerts: AlertItem[]; setTab: (t: Tab) => void; setDetail: (d: Detail) => void }) {
-  const unread = alerts.filter(a => !a.read).length;
-  return (
-    <>
-      <Header title="Overview" action={
-        <div className="flex items-center gap-3">
-          <div className="hidden items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 sm:flex"><span className="live-dot size-2 rounded-full bg-emerald-500 animate-pulse" />Live data</div>
-          <button onClick={() => setTab("alerts")} className="grid size-10 place-items-center rounded-full hover:bg-slate-100 transition relative" aria-label="Alerts">
-            <Icon>notifications</Icon>
-            {unread > 0 && <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-red-500 text-[9px] font-bold text-white">{unread}</span>}
-          </button>
-        </div>
-      } />
-      <div className="mx-auto max-w-[1500px] p-3.5 sm:p-6 lg:p-8">
-        <div className="mb-7 hidden items-center justify-between gap-4 sm:flex">
-          <div><p className="text-sm font-medium text-slate-500">Good afternoon,</p><h2 className="text-2xl font-extrabold capitalize tracking-tight sm:text-3xl text-slate-900">{name}</h2><p className="mt-1 hidden text-sm text-slate-500 sm:block">Everything is connected and Grandpa is currently inside a safe zone.</p></div>
-          <div className="flex items-center gap-3"><div className="hidden text-right sm:block"><p className="text-xs font-bold text-slate-700">Administrator</p><p className="text-[11px] text-slate-400">SmartStep workspace</p></div><div className="grid size-12 place-items-center rounded-2xl border border-indigo-100 bg-white text-lg font-bold text-[#1A237E] shadow-sm sm:size-14">{name[0]?.toUpperCase()}</div></div>
-        </div>
 
-        <section className="relative mb-4 overflow-hidden rounded-[26px] bg-gradient-to-br from-[#111858] via-[#202a82] to-[#5264d8] p-5 text-white shadow-[0_18px_42px_rgba(26,35,126,.22)] sm:hidden">
-          <div className="absolute -right-12 -top-14 size-40 rounded-full border border-white/10 bg-white/5" />
-          <div className="absolute -bottom-16 right-12 size-32 rounded-full border border-white/10" />
-          <div className="relative flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-extrabold uppercase tracking-[.18em] text-indigo-200">Good afternoon</p>
-              <h2 className="mt-1 text-2xl font-black capitalize tracking-tight">{name}</h2>
-              <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-indigo-100"><span className="live-dot size-2 rounded-full bg-emerald-400" />All systems connected</div>
-            </div>
-            <div className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/15 bg-white/10 text-lg font-black backdrop-blur">{name[0]?.toUpperCase()}</div>
-          </div>
-          <div className="relative mt-5 grid grid-cols-3 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/10 py-3 backdrop-blur-sm">
-            <div className="px-3"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-200">Wearer</p><p className="mt-1 truncate text-sm font-extrabold">Grandpa</p></div>
-            <div className="px-3"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-200">Battery</p><p className="mt-1 text-sm font-extrabold">{battery}%</p></div>
-            <div className="px-3"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-200">Status</p><p className="mt-1 flex items-center gap-1 text-sm font-extrabold text-emerald-300"><Icon className="text-sm">verified</Icon>Safe</p></div>
-          </div>
-        </section>
-
-        {/* 响应式网格布局 */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:gap-6">
-          
-          <Card onClick={() => setDetail("device")} className="col-span-1 hidden min-h-[176px] sm:block">
-            <div className="flex h-full flex-col justify-between gap-5">
-              <div className="flex items-start gap-3">
-              <div className="grid size-12 place-items-center rounded-2xl bg-emerald-500 text-white"><Icon>check</Icon></div>
-              <div className="flex-1"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Device status</p><p className="text-xl font-extrabold text-emerald-600">Online</p><p className="text-xs text-slate-400">Last updated: just now</p></div>
-              <Icon className="text-slate-300">chevron_right</Icon>
-              </div>
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs"><span className="text-slate-500">Bluetooth signal</span><span className="font-bold text-slate-700">Excellent · −48 dBm</span></div>
-            </div>
-          </Card>
-
-          <Card onClick={() => setDetail("battery")} className="col-span-1 hidden min-h-[176px] sm:block">
-            <div className="flex items-center justify-between"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Battery</p><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600">Good</span></div>
-            <div className="mt-3 flex items-end justify-between"><div className="text-4xl font-black tracking-tight text-emerald-600">{battery}%</div><span className="text-xs font-semibold text-slate-500">≈ {(battery * .22).toFixed(1)}h remaining</span></div>
-            <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all" style={{ width: `${battery}%` }} /></div>
-            <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs"><span className="text-slate-500">3.86 V</span><span className="text-slate-500">31.2°C</span><span className="font-bold text-slate-700">Not charging</span></div>
-          </Card>
-
-          <Card className="col-span-1 hidden min-h-[176px] sm:block">
-            <div className="flex h-full flex-col justify-between gap-5">
-              <div className="flex items-start gap-3">
-              <div className="grid size-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-600"><Icon>shield</Icon></div>
-              <div className="flex-1"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Safety status</p><p className="text-xl font-extrabold text-emerald-600">Safe</p><p className="text-xs text-slate-400">User is inside Safe Zone</p></div><span className="live-dot mt-2 size-2 rounded-full bg-emerald-500" />
-              </div>
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs"><span className="text-slate-500">Current zone</span><span className="font-bold text-slate-700">Home · 200 m</span></div>
-            </div>
-          </Card>
-
-          {unread > 0 && (
-            <button onClick={() => setTab("alerts")} className="col-span-1 md:col-span-2 lg:col-span-3 flex w-full items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-left text-sm font-bold text-red-600 hover:bg-red-100 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-              <Icon>notification_important</Icon><span className="flex-1">{unread} unread alerts require attention</span><span>View ›</span>
-            </button>
-          )}
-
-          <Card onClick={() => setTab("map")} className="col-span-1 md:col-span-2 lg:col-span-1 flex flex-col justify-between">
-            <div>
-              <p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Current location</p>
-              <div className="mt-3 flex items-center gap-3">
-                <div className="grid size-10 place-items-center rounded-xl bg-indigo-50 text-[#1A237E]"><Icon>location_on</Icon></div>
-                <div><p className="text-sm font-semibold text-slate-800">1.3440, 103.6820</p><p className="text-xs text-slate-400">Accuracy: 5.4 m · Speed: 1.2 m/s</p></div>
-              </div>
-            </div>
-            <button className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-100 py-2.5 text-sm font-bold text-[#1A237E] bg-indigo-50 hover:bg-indigo-100 transition">
-              <Icon className="text-lg">map</Icon>View Live Map
-            </button>
-          </Card>
-
-          <ActivityChart className="col-span-1 md:col-span-2 lg:col-span-2" />
-          
-          <div className="col-span-1 md:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4 xl:gap-6">
-            <QuickActions setTab={setTab} setDetail={setDetail} />
-            <ZoneSummary setTab={setTab} />
-          </div>
-
-        </div>
-      </div>
-    </>
-  );
+function LiveLocation({ compact=false }: {compact?: boolean}) {
+  const live=useLiveDevice();const fix=live.location;
+  if(!live.connected)return <div className="rounded-xl bg-slate-50 p-8 text-sm text-slate-500">请在 Settings 中连接设备。</div>;
+  if(!fix)return <div className="rounded-xl bg-slate-50 p-8 text-sm text-slate-500">等待设备上报位置。</div>;
+  return <div className="space-y-4">
+    {(live.stale||live.error)&&<p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">最后已知位置，当前数据已过期或连接中断。</p>}
+    {fix.source==='wifi'?<div className="rounded-2xl bg-indigo-50 p-6 sm:p-8">
+      <div className="mb-4 text-[#3949AB]"><Icon className="text-4xl">apartment</Icon></div>
+      <h3 className="text-2xl font-extrabold text-slate-900">{fix.zone_name}</h3>
+      <p className="mt-3 text-sm text-slate-500">GPS信号不稳定，采用室内定位</p>
+    </div>:fix.source==='unavailable'?<p className="rounded-xl bg-slate-50 p-8 text-sm text-slate-500">暂无可用位置。</p>:<>
+      <div className="flex items-center justify-between gap-3 text-sm"><b>{fix.source==='gps'?'GPS位置':'预估位置 · LTE'}</b>{fix.source==='lte'&&<span className="text-xs text-amber-700">范围半径约 {Math.round(fix.accuracy_m!)} 米</span>}</div>
+      <DeviceMap location={fix} compact={compact}/>
+      <p className="text-sm font-mono text-slate-600">{fix.latitude?.toFixed(6)}, {fix.longitude?.toFixed(6)}</p>
+    </>}
+    <p className="text-xs text-slate-400">更新时间：{new Date(fix.recorded_at).toLocaleString()}</p>
+  </div>;
 }
 
-function MapPage({ onBack, battery }: { onBack: () => void; battery: number }) {
-  const [history, setHistory] = useState(false);
-  const [filter, setFilter] = useState("1h");
-  const mapElement = useRef<HTMLDivElement>(null);
-  const wearerMarker = useRef<import("leaflet").Marker | null>(null);
-  
-  useEffect(() => {
-    if (!mapElement.current) return;
-    let disposed = false;
-    let mapInstance: import("leaflet").Map | undefined;
-    
-    void import("leaflet").then(L => {
-      if (disposed || !mapElement.current) return;
-      
-      // 添加基础 CSS 支持（避免无外链 CSS 时样式错乱）
-      if (!document.getElementById("leaflet-css")) {
-        const link = document.createElement("link");
-        link.id = "leaflet-css";
-        link.rel = "stylesheet";
-        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-        document.head.appendChild(link);
-      }
-
-      const current: [number, number] = [1.344, 103.682];
-      mapInstance = L.map(mapElement.current, {
-        zoomControl: false,
-        zoomAnimation: false,
-        fadeAnimation: false,
-        markerZoomAnimation: false,
-      }).setView(current, 15);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(mapInstance);
-      L.control.zoom({ position: "bottomright" }).addTo(mapInstance);
-      
-      L.circle([1.344, 103.682], { radius: 200, color: "#10b981", fillColor: "#34d399", fillOpacity: .13, weight: 2 }).bindPopup("<strong>Home Safe Zone</strong><br>200 m radius").addTo(mapInstance);
-      L.circle([1.347, 103.687], { radius: 150, color: "#ef4444", fillColor: "#f87171", fillOpacity: .14, weight: 2 }).bindPopup("<strong>Construction Area</strong><br>High-risk zone").addTo(mapInstance);
-      L.polyline([[1.3428,103.6805],[1.3432,103.6811],[1.344,103.682],[1.3448,103.6832],[1.3454,103.684]], { color: "#3949ab", weight: 4, opacity: .75, dashArray: "8 8" }).addTo(mapInstance);
-      
-      // Marker 图标自定义
-      const personIcon = L.divIcon({ 
-        className: "bg-transparent border-0", 
-        html: `<div class="bg-white border-2 border-[#1A237E] rounded-full p-1 shadow-lg text-center flex flex-col items-center justify-center size-12 text-[#1A237E]"><span class="material-symbols-rounded text-xl">directions_walk</span><span data-wearer-battery class="text-[10px] font-bold block leading-none">${battery}%</span></div>`, 
-        iconSize: [48, 48], 
-        iconAnchor: [24, 24] 
-      });
-      wearerMarker.current = L.marker(current, { icon: personIcon })
-        .bindPopup(`<strong>Grandpa</strong><br>Battery ${battery}%<br>Accuracy 5.4 m`)
-        .addTo(mapInstance);
-    });
-    
-    // 清理函数优化
-    return () => { 
-      disposed = true; 
-      wearerMarker.current = null;
-      if (mapInstance) {
-        mapInstance.stop();
-        mapInstance.closePopup();
-        mapInstance.off();
-        mapInstance.remove();
-      }
-    };
-    // The Leaflet instance must only be created once for this mounted page.
-    // Battery changes are applied by the lightweight effect below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    wearerMarker.current?.setPopupContent(`<strong>Grandpa</strong><br>Battery ${battery}%<br>Accuracy 5.4 m`);
-    const batteryLabel = mapElement.current?.querySelector<HTMLElement>("[data-wearer-battery]");
-    if (batteryLabel) batteryLabel.textContent = `${battery}%`;
-  }, [battery]);
-
-  return (
-    <div className="flex flex-col h-dvh bg-[#e9edf2]">
-      <Header title="Live Map" onBack={onBack} action={<button onClick={() => setHistory(!history)} className={`grid size-10 place-items-center rounded-full transition ${history ? "bg-[#1A237E] text-white" : "hover:bg-slate-100"}`} aria-label="Toggle route history"><Icon>route</Icon></button>} />
-      {history && (
-        <div className="flex items-center gap-3 overflow-x-auto border-b border-slate-200 bg-white px-4 py-3 shadow-sm shrink-0">
-          <span className="flex items-center gap-2 whitespace-nowrap text-xs font-bold text-slate-500"><Icon className="text-lg text-[#3949AB]">history</Icon>Route period</span>
-          {["1h", "6h", "Today", "Yesterday"].map(x => <button key={x} onClick={() => setFilter(x)} className={`rounded-full px-4 py-2 text-xs font-bold transition ${filter === x ? "bg-[#1A237E] text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>{x}</button>)}
-        </div>
-      )}
-      <div className="relative flex-1">
-        <div ref={mapElement} className="absolute inset-0 z-0" aria-label="Live location map" />
-        
-        <div className="pointer-events-none absolute left-4 top-4 z-[500] grid gap-2 sm:left-6 sm:top-6 sm:grid-cols-3">
-          <div className="flex items-center gap-2 bg-white/95 backdrop-blur shadow-sm rounded-xl py-2 px-3 border border-slate-200/50"><Icon className="text-emerald-600">person_pin_circle</Icon><div className="flex flex-col leading-tight"><small className="text-[10px] text-slate-400 font-bold uppercase">Wearer</small><strong className="text-xs text-slate-700">Grandpa</strong></div></div>
-          <div className="flex items-center gap-2 bg-white/95 backdrop-blur shadow-sm rounded-xl py-2 px-3 border border-slate-200/50"><Icon className="text-[#3949AB]">battery_6_bar</Icon><div className="flex flex-col leading-tight"><small className="text-[10px] text-slate-400 font-bold uppercase">Battery</small><strong className="text-xs text-slate-700">{battery}% · Good</strong></div></div>
-        </div>
-        
-        <div className="absolute bottom-5 left-4 right-4 z-[500] rounded-2xl border border-white/60 bg-white/95 p-4 shadow-2xl backdrop-blur sm:left-6 sm:right-auto sm:w-[380px]">
-          <div className="flex items-center gap-3">
-            <div className="grid size-11 place-items-center rounded-xl bg-indigo-50 text-[#1A237E]"><Icon>location_on</Icon></div>
-            <div className="min-w-0 flex-1"><p className="font-extrabold text-slate-800">Grandpa&apos;s current location</p><p className="truncate text-xs text-slate-500">Nanyang Avenue, Singapore · 1.34400, 103.68200</p></div>
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600">Safe</span>
-          </div>
-        </div>
+function Home({ name, battery, alerts, setTab, setDetail }: { name: string; battery: number; alerts: AlertItem[]; setTab: (t: Tab) => void; setDetail: (d: Detail) => void }) {
+  const live=useLiveDevice(); const fix=live.location;
+  const source=fix?({gps:'GPS',wifi:'Wi-Fi 室内定位',lte:'LTE 预估位置',unavailable:'暂无位置'}[fix.source]):'等待数据';
+  const level=fix?.battery_percent;
+  return <>
+    <Header title="Overview" action={<button onClick={live.query} disabled={!live.connected||live.loading} className="icon-button" aria-label="查询当前位置"><Icon>refresh</Icon></button>}/>
+    <div className="mx-auto max-w-[1500px] p-3.5 sm:p-6 lg:p-8">
+      <div className="mb-7 hidden items-center justify-between gap-4 sm:flex"><div><h2 className="text-2xl font-extrabold tracking-tight text-slate-900">SmartStep #001</h2><p className="mt-1 text-sm text-slate-500">{live.status}</p></div><button onClick={()=>setTab('settings')} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-[#1A237E]">设备设置</button></div>
+      <section className="relative mb-4 overflow-hidden rounded-[26px] bg-gradient-to-br from-[#111858] via-[#202a82] to-[#5264d8] p-5 text-white shadow-lg sm:hidden">
+        <p className="text-xs font-bold text-indigo-200">SmartStep #001</p><h2 className="mt-2 text-2xl font-black">{live.status}</h2>
+        <div className="mt-5 grid grid-cols-2 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/10 py-3"><div className="px-3"><p className="text-[10px] text-indigo-200">Battery</p><p className="mt-1 text-sm font-bold">{level==null?'暂未上报':level+'%'}</p></div><div className="px-3"><p className="text-[10px] text-indigo-200">Location</p><p className="mt-1 text-sm font-bold">{source}</p></div></div>
+      </section>
+      {live.error&&<p role="alert" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{live.error}</p>}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:gap-6">
+        <Card onClick={()=>setDetail('device')} className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Device status</p><div className="mt-4 flex items-center gap-3"><span className="grid size-12 place-items-center rounded-2xl bg-indigo-50 text-[#1A237E]"><Icon>directions_walk</Icon></span><div><p className="text-xl font-extrabold text-slate-800">{live.status}</p><p className="mt-1 text-xs text-slate-400">shoe_001 · 4G上传</p></div></div></Card>
+        <Card onClick={()=>setDetail('battery')} className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Battery</p><p className="mt-4 text-3xl font-black text-slate-700">{level==null?'暂未上报':level+'%'}</p><p className="mt-3 text-xs text-slate-400">以设备上报数据为准</p></Card>
+        <Card className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Location source</p><p className="mt-4 text-xl font-extrabold text-[#1A237E]">{source}</p><p className="mt-3 text-xs text-slate-400">GPS → Wi-Fi → LTE</p></Card>
+        <Card className="md:col-span-2 lg:col-span-2"><div className="mb-4 flex items-center justify-between"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Current location</p><button onClick={()=>setTab('map')} className="text-xs font-bold text-[#3949AB]">查看位置 ›</button></div><LiveLocation compact/></Card>
+        <Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Quick actions</p><div className="mt-5 grid grid-cols-2 gap-3">{[['my_location','查询位置',live.query],['tune','设备连接',()=>setTab('settings')],['battery_charging_full','电池信息',()=>setDetail('battery')],['notifications','通知',()=>setTab('alerts')]].map(([icon,label,action])=><button key={label as string} onClick={action as ()=>void} className="flex min-h-24 flex-col items-start justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-xs font-bold text-slate-600"><Icon className="text-[#3949AB]">{icon as string}</Icon>{label as string}</button>)}</div></Card>
       </div>
     </div>
-  );
+  </>;
 }
+
+
+
+function MapPage({ onBack, battery }: { onBack: () => void; battery: number }) {
+ const live=useLiveDevice();
+ return <><Header title="Location" onBack={onBack} action={<button onClick={live.query} disabled={!live.connected||live.loading} className="icon-button" aria-label="查询当前位置"><Icon>refresh</Icon></button>}/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">{live.error&&<p role="alert" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{live.error}</p>}<Card><LiveLocation/></Card></div></>;
+}
+
 
 function Alerts({ alerts, setAlerts }: { alerts: AlertItem[]; setAlerts: React.Dispatch<React.SetStateAction<AlertItem[]>> }) {
   const unread = alerts.some(a => !a.read);
@@ -424,165 +276,19 @@ function Toggle({ value, onChange }: { value: boolean; onChange: () => void }) {
   ); 
 }
 
+
 function Settings({ name, email, onLogout, setDetail }: { name: string; email: string; onLogout: () => void; setDetail: (d: Detail) => void }) {
-  const [notifs, setNotifs] = useState({ push: true, hazard: true, battery: true, offline: true });
-  const [freq, setFreq] = useState("30s");
-  const [demo, setDemo] = useState(true);
-  
-  const setting = (key: keyof typeof notifs, title: string, icon: string) => (
-    <div className="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition">
-      <div className="grid size-10 place-items-center rounded-lg bg-slate-100 text-slate-600"><Icon>{icon}</Icon></div>
-      <span className="flex-1 text-sm font-semibold text-slate-800">{title}</span>
-      <Toggle value={notifs[key]} onChange={() => setNotifs(v => ({ ...v, [key]: !v[key] }))} />
-    </div>
-  );
-  
-  return (
-    <>
-      <Header title="Settings" />
-      <div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
-        <PageBanner eyebrow="Workspace controls" title="Settings & preferences" description="Manage the connected device, safety boundaries, tracking behaviour and the alerts you receive." icon="tune">
-          <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white backdrop-blur"><span className="mr-2 inline-block size-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />All services online</div>
-        </PageBanner>
-        
-        <div className="grid gap-6 mt-8 lg:grid-cols-2">
-          <div className="lg:col-span-2">
-            <p className="mb-3 text-sm font-bold text-slate-500 uppercase tracking-wider">Device</p>
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <button onClick={() => setDetail("device")} className="flex w-full items-center gap-3 p-4 text-left border-b border-slate-100 hover:bg-slate-50 transition focus-visible:bg-slate-50 outline-none">
-                <div className="grid size-10 place-items-center rounded-lg bg-slate-100 text-slate-600"><Icon>directions_walk</Icon></div>
-                <div className="flex-1"><p className="text-sm font-semibold text-slate-800">SmartStep #001</p><p className="text-xs text-emerald-600">● Connected</p></div>
-                <Icon className="text-slate-400">chevron_right</Icon>
-              </button>
-              <div className="flex items-center gap-3 p-4">
-                <div className="grid size-10 place-items-center rounded-lg bg-slate-100 text-slate-600"><Icon>person</Icon></div>
-                <div><p className="text-sm font-semibold text-slate-800">Wearer</p><p className="text-xs text-slate-500">Grandpa</p></div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="lg:col-span-2">
-            <p className="mb-3 text-sm font-bold text-slate-500 uppercase tracking-wider">Notifications</p>
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              {setting("push", "Push Notifications", "notifications")}
-              {setting("hazard", "Hazard Alerts", "warning")}
-              {setting("battery", "Battery Alerts", "battery_alert")}
-              {setting("offline", "Device Offline Alerts", "wifi_off")}
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6 lg:col-span-2">
-            <div>
-              <p className="mb-3 text-sm font-bold text-slate-500 uppercase tracking-wider">Tracking Frequency</p>
-              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
-                <div className="grid grid-cols-4 gap-2">
-                  {["10s", "30s", "1min", "5min"].map(x => <button key={x} onClick={() => setFreq(x)} className={`rounded-full py-2.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3949AB] ${freq === x ? "bg-[#1A237E] text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{x}</button>)}
-                </div>
-              </div>
-            </div>
-            
-            <div>
-              <p className="mb-3 text-sm font-bold text-slate-500 uppercase tracking-wider">Data Source</p>
-              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
-                <div className="grid grid-cols-2 gap-2">
-                  {[[true, "Demo Mode"], [false, "Real Device"]] .map(([v, x]) => <button key={x as string} onClick={() => setDemo(v as boolean)} className={`rounded-full py-2.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3949AB] ${demo === v ? "bg-[#1A237E] text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{x as string}</button>)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-2">
-            <p className="mb-3 text-sm font-bold text-slate-500 uppercase tracking-wider">Account</p>
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center gap-4 p-4 border-b border-slate-100">
-                <div className="grid size-12 place-items-center rounded-full bg-indigo-50 font-bold text-lg uppercase text-[#1A237E]">{name[0]}</div>
-                <div><p className="text-base font-semibold capitalize text-slate-800">{name}</p><p className="text-sm text-slate-500">{email}</p></div>
-              </div>
-              <button onClick={onLogout} className="flex w-full items-center gap-3 p-4 text-left text-red-600 hover:bg-red-50 transition focus-visible:bg-red-50 outline-none">
-                <div className="grid size-10 place-items-center rounded-lg bg-red-100 text-red-600"><Icon>logout</Icon></div>
-                <span className="text-sm font-bold">Logout securely</span>
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <p className="mt-12 text-center text-xs text-slate-400">SmartStep Web Platform · Version 1.0.2</p>
-      </div>
-    </>
-  );
+ const live=useLiveDevice();
+ return <><Header title="Settings"/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><div className="grid gap-6 lg:grid-cols-2"><Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Device</p><h2 className="mt-3 text-lg font-extrabold">SmartStep #001</h2><p className="mt-2 mb-6 text-sm text-slate-500">{live.status}</p>{live.form}{live.connected&&<button onClick={live.disconnect} className="mt-4 w-full rounded-xl border border-red-100 p-3 text-sm font-bold text-red-600">断开连接</button>}</Card><Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Location</p><InfoRow label="定位顺序">GPS → Wi-Fi → LTE</InfoRow><InfoRow label="页面读取">请求结束后约5秒</InfoRow><InfoRow label="上传方式">4G</InfoRow><p className="mt-4 text-xs leading-relaxed text-slate-400">查看凭证使用 read 值。板子的位置上报间隔由设备程序决定。</p></Card></div></div></>;
 }
+
+
 
 function DetailPage({ detail, battery, onClose, setDetail }: { detail: Exclude<Detail, null>; battery: number; onClose: () => void; setDetail: (d: Detail) => void }) {
-  const batteryView = detail === "battery";
-  return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#F4F6FA] animate-in slide-in-from-bottom-8 duration-300">
-      <Header title={batteryView ? "Battery health" : "Device profile"} onBack={onClose} />
-      <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
-        {batteryView ? (
-          <>
-            <div className="mb-6 rounded-3xl bg-[#111858] p-6 sm:p-10 flex flex-col md:flex-row items-center gap-8 shadow-xl text-center md:text-left">
-              <div className="flex-1">
-                <p className="text-sm font-bold text-indigo-200 tracking-wider">SMARTSTEP #001</p>
-                <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">Battery is healthy</h2>
-                <p className="mt-3 max-w-lg text-sm leading-relaxed text-indigo-100">Estimated to last another {(battery * .22).toFixed(1)} hours at the current activity level before requiring a charge.</p>
-              </div>
-              <div className="relative grid size-40 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#34d399 ${battery * 3.6}deg,rgba(255,255,255,.15) 0)` }}>
-                <div className="grid size-32 place-items-center rounded-full bg-[#1A237E] text-center shadow-inner">
-                  <div>
-                    <Icon className="text-4xl text-emerald-300 mb-1">battery_6_bar</Icon>
-                    <p className="text-4xl font-black text-white tracking-tighter">{battery}%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:gap-6">
-              <Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400 mb-4">Electrical</p><InfoRow label="Level"><span className="text-emerald-600 text-lg">{battery}%</span></InfoRow><InfoRow label="Voltage">3.86 V</InfoRow><InfoRow label="Current draw">194 mA</InfoRow></Card>
-              <Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400 mb-4">Health</p><InfoRow label="Temperature">31.2°C</InfoRow><InfoRow label="State">Not charging</InfoRow><InfoRow label="Est. Remaining">{(battery * .22).toFixed(1)}h</InfoRow></Card>
-              <Card className="md:col-span-2 lg:col-span-1">
-                <p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Discharge trend</p>
-                <div className="mt-6 flex h-32 items-end gap-2">
-                  {[95,91,88,86,83,81,78].map((v,i)=><div key={v} className="flex flex-1 flex-col items-center gap-2 group"><div className="w-full rounded-t bg-gradient-to-t from-[#3949AB] to-indigo-300 transition-all group-hover:opacity-80" style={{height:`${v}%`}}/><span className="text-[10px] text-slate-400 font-bold">{i*2}h</span></div>)}
-                </div>
-              </Card>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="mb-6 rounded-3xl bg-[#111858] p-6 sm:p-10 flex flex-col md:flex-row items-center gap-6 shadow-xl">
-              <div className="grid size-24 shrink-0 place-items-center rounded-[28px] bg-white/10 text-white backdrop-blur"><Icon className="text-5xl">directions_walk</Icon></div>
-              <div className="flex-1 text-center md:text-left">
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                  <h2 className="text-3xl font-black text-white">SmartStep #001</h2>
-                  <span className="rounded-full border border-emerald-500/30 bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-300 backdrop-blur">● Online</span>
-                </div>
-                <p className="mt-2 text-sm text-indigo-100">Assigned to Grandpa · Connected via Bluetooth Gateway</p>
-              </div>
-              <button onClick={() => setDetail("battery")} className="w-full md:w-auto rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-[#1A237E] hover:bg-slate-100 transition active:scale-95 shadow-lg">View battery</button>
-            </div>
-            
-            <div className="grid gap-4 md:grid-cols-2 xl:gap-6">
-              <Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400 mb-4">Connectivity</p><InfoRow label="Status"><span className="text-emerald-600 font-bold">Online</span></InfoRow><InfoRow label="Gateway">Phone BT-Link</InfoRow><InfoRow label="Signal">Excellent · −48 dBm</InfoRow><InfoRow label="Last sync">Just now</InfoRow></Card>
-              <Card onClick={() => setDetail("battery")}><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400 mb-4 flex justify-between">Battery <Icon className="text-base text-slate-400">open_in_new</Icon></p><InfoRow label="Level"><span className="text-emerald-600 font-bold">{battery}%</span></InfoRow><InfoRow label="Voltage">3.86 V</InfoRow><InfoRow label="Temperature">31.2°C</InfoRow><InfoRow label="Estimated">{(battery*.22).toFixed(1)}h</InfoRow></Card>
-              <Card className="md:col-span-2">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                  <div><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Latest location</p><h3 className="mt-1 text-lg font-extrabold text-slate-900">Nanyang Avenue, Singapore</h3></div>
-                  <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-600">Inside Safe zone</span>
-                </div>
-                <div className="mt-4 grid gap-4 rounded-xl bg-slate-50 p-5 sm:grid-cols-4">
-                  <div><p className="text-xs text-slate-500 mb-1">Latitude</p><b className="text-slate-800 font-mono">1.34400</b></div>
-                  <div><p className="text-xs text-slate-500 mb-1">Longitude</p><b className="text-slate-800 font-mono">103.68200</b></div>
-                  <div><p className="text-xs text-slate-500 mb-1">Accuracy</p><b className="text-slate-800">5.4 m</b></div>
-                  <div><p className="text-xs text-slate-500 mb-1">Speed</p><b className="text-slate-800">1.2 m/s</b></div>
-                </div>
-              </Card>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
+ const live=useLiveDevice();const fix=live.location;
+ return <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#F4F6FA]"><Header title={detail==='battery'?'Battery':'Device'} onBack={onClose}/><div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8"><Card>{detail==='battery'?<><InfoRow label="电量">{fix?.battery_percent==null?'暂未上报':fix.battery_percent+'%'}</InfoRow><p className="mt-4 text-sm text-slate-500">电压、温度和剩余使用时间暂未接入。</p></>:<><InfoRow label="设备">shoe_001</InfoRow><InfoRow label="状态">{live.status}</InfoRow><InfoRow label="更新时间">{fix?new Date(fix.recorded_at).toLocaleString():'暂未上报'}</InfoRow><div className="mt-5"><LiveLocation compact/></div></>}</Card></div></div>;
 }
+
 
 function BottomNav({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => void; unread: number }) {
   const tabs: [Tab, string, string][] = [["home", "home", "Home"], ["map", "map", "Map"], ["alerts", "notifications", "Alerts"], ["settings", "settings", "Settings"]];
@@ -600,7 +306,7 @@ function BottomNav({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => void
 }
 
 function SideNav({ tab, setTab, unread, name, collapsed, onToggle, onLogout }: { tab: Tab; setTab: (t: Tab) => void; unread: number; name: string; collapsed: boolean; onToggle: () => void; onLogout: () => void }) {
-  const tabs: [Tab, string, string][] = [["home", "grid_view", "Overview"], ["map", "map", "Live Map"], ["alerts", "notifications", "Alerts"], ["settings", "settings", "Settings"]];
+  const tabs: [Tab, string, string][] = [["home", "grid_view", "Overview"], ["map", "map", "Location"], ["alerts", "notifications", "Alerts"], ["settings", "settings", "Settings"]];
   return (
     <aside className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-[#111858] px-3 py-6 text-white shadow-2xl transition-[width] duration-300 ${collapsed ? "w-[76px]" : "w-64"}`}>
       <div className={`mb-8 flex items-center px-2 ${collapsed ? "flex-col gap-3" : "gap-3"}`}>
@@ -637,14 +343,14 @@ function SideNav({ tab, setTab, unread, name, collapsed, onToggle, onLogout }: {
   );
 }
 
-export default function SmartStepApp() {
-  const [realDevice, setRealDevice] = useState(true);
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [email, setEmail] = useState("demo@smartstep.com");
+function OriginalApp() {
+  const live=useLiveDevice();
+  const [loggedIn, setLoggedIn] = useState(true);
+  const [email, setEmail] = useState("SmartStep");
   const [tab, setTab] = useState<Tab>("home");
   const [detail, setDetail] = useState<Detail>(null);
   const [battery, setBattery] = useState(78);
-  const [alerts, setAlerts] = useState(initialAlerts);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [navCollapsed, setNavCollapsed] = useState(false);
   
   const name = useMemo(() => email.split("@")[0] || "demo", [email]);
@@ -659,13 +365,6 @@ export default function SmartStepApp() {
     return () => window.removeEventListener("load", register);
   }, []);
   
-  // 模拟电池消耗
-  useEffect(() => { 
-    if (realDevice || !loggedIn) return;
-    const id = window.setInterval(() => setBattery(v => v <= 10 ? 95 : v - 1), 5000); 
-    return () => window.clearInterval(id); 
-  }, [loggedIn, realDevice]);
-  
   // 屏幕缩小自动折叠侧边栏
   useEffect(() => { 
     const handleResize = () => { if (window.innerWidth < 1024) setNavCollapsed(true); };
@@ -674,7 +373,6 @@ export default function SmartStepApp() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  if (realDevice) return <RealDevice onDemo={() => setRealDevice(false)} />;
   if (!loggedIn) return <Login onLogin={value => { setEmail(value); setLoggedIn(true); }} />;
   
   const unread = alerts.filter(a => !a.read).length;
@@ -682,14 +380,14 @@ export default function SmartStepApp() {
   return (
     // 移动端预留底部导航高度 pb-[68px]
     <main className="min-h-dvh bg-[#F0F2F5] pb-[68px] md:pb-0">
-      <div className="relative z-[80] bg-amber-100 p-3 text-center text-sm text-slate-900">Demo data · <button className="font-bold underline" onClick={() => { setDetail(null); setRealDevice(true); }}>Connect real GPS device</button></div>
+
       
       {/* 桌面侧边栏：移动端隐藏 */}
       <div className="hidden md:block">
         <SideNav 
           tab={tab} setTab={setTab} unread={unread} name={name} 
           collapsed={navCollapsed} onToggle={() => setNavCollapsed(v=>!v)} 
-          onLogout={() => { setLoggedIn(false); setTab("home"); }} 
+          onLogout={() => { live.disconnect(); setTab("settings"); }} 
         />
       </div>
       
@@ -700,8 +398,8 @@ export default function SmartStepApp() {
       <div className={`min-h-dvh transition-[margin] duration-300 ${navCollapsed ? "md:ml-[76px]" : "md:ml-64"}`}>
         {tab === "home" && <Home name={name} battery={battery} alerts={alerts} setTab={setTab} setDetail={setDetail} />}
         {tab === "map" && <MapPage onBack={() => setTab("home")} battery={battery} />}
-        {tab === "alerts" && <Alerts alerts={alerts} setAlerts={setAlerts} />}
-        {tab === "settings" && <Settings name={name} email={email} setDetail={setDetail} onLogout={() => { setLoggedIn(false); setTab("home"); }} />}
+        {tab === "alerts" && <><Header title="Alerts"/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><Card><p className="text-sm text-slate-500">暂无通知。当前仅接入定位，尚未接入设备报警。</p></Card></div></>}
+        {tab === "settings" && <Settings name={name} email={email} setDetail={setDetail} onLogout={() => { live.disconnect(); setTab("settings"); }} />}
       </div>
 
       {/* 详情浮层 */}
@@ -710,3 +408,5 @@ export default function SmartStepApp() {
   );
 }
 
+
+export default function SmartStepApp() { return <RealDevice><OriginalApp/></RealDevice>; }
