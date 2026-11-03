@@ -674,6 +674,7 @@ export default function SmartStepApp() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  if (realDevice) return <RealDevice onDemo={() => setRealDevice(false)} />;
   if (!loggedIn) return <Login onLogin={value => { setEmail(value); setLoggedIn(true); }} />;
   
   const unread = alerts.filter(a => !a.read).length;
