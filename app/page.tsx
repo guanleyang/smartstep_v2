@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import RealDevice, { DeviceMap, useLiveDevice } from "./RealDevice";
+import RemoteStatus from "./RemoteStatus";
 
 type Tab = "home" | "map" | "alerts" | "settings";
 type Detail = "battery" | "device" | null;
@@ -194,7 +195,7 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
         <Card onClick={()=>setDetail('battery')} className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Battery</p><p className="mt-4 text-3xl font-black text-slate-700">{level==null?'暂未上报':level+'%'}</p><p className="mt-3 text-xs text-slate-400">以设备上报数据为准</p></Card>
         <Card className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Location source</p><p className="mt-4 text-xl font-extrabold text-[#1A237E]">{source}</p><p className="mt-3 text-xs text-slate-400">GPS → Wi-Fi → LTE</p></Card>
         <Card className="md:col-span-2 lg:col-span-2"><div className="mb-4 flex items-center justify-between"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Current location</p><button onClick={()=>setTab('map')} className="text-xs font-bold text-[#3949AB]">查看位置 ›</button></div><LiveLocation compact/></Card>
-        <Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Quick actions</p><div className="mt-5 grid grid-cols-2 gap-3">{[['my_location','查询位置',live.query],['tune','设备连接',()=>setTab('settings')],['battery_charging_full','电池信息',()=>setDetail('battery')],['notifications','通知',()=>setTab('alerts')]].map(([icon,label,action])=><button key={label as string} onClick={action as ()=>void} className="flex min-h-24 flex-col items-start justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-xs font-bold text-slate-600"><Icon className="text-[#3949AB]">{icon as string}</Icon>{label as string}</button>)}</div></Card>
+        <Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Quick actions</p><div className="mt-5 grid grid-cols-2 gap-3">{[['my_location','查询位置',live.query],['tune','设备连接',()=>setTab('settings')],['battery_charging_full','电池信息',()=>setDetail('battery')],['monitor_heart','远程状态',()=>setDetail('device')]].map(([icon,label,action])=><button key={label as string} onClick={action as ()=>void} className="flex min-h-24 flex-col items-start justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-xs font-bold text-slate-600"><Icon className="text-[#3949AB]">{icon as string}</Icon>{label as string}</button>)}</div></Card>
       </div>
     </div>
   </>;
@@ -286,7 +287,7 @@ function Settings({ name, email, onLogout, setDetail }: { name: string; email: s
 
 function DetailPage({ detail, battery, onClose, setDetail }: { detail: Exclude<Detail, null>; battery: number; onClose: () => void; setDetail: (d: Detail) => void }) {
  const live=useLiveDevice();const fix=live.location;
- return <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#F4F6FA]"><Header title={detail==='battery'?'Battery':'Device'} onBack={onClose}/><div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8"><Card>{detail==='battery'?<><InfoRow label="电量">{fix?.battery_percent==null?'暂未上报':fix.battery_percent+'%'}</InfoRow><p className="mt-4 text-sm text-slate-500">电压、温度和剩余使用时间暂未接入。</p></>:<><InfoRow label="设备">shoe_001</InfoRow><InfoRow label="状态">{live.status}</InfoRow><InfoRow label="更新时间">{fix?new Date(fix.recorded_at).toLocaleString():'暂未上报'}</InfoRow><div className="mt-5"><LiveLocation compact/></div></>}</Card></div></div>;
+ return <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#F4F6FA]"><Header title={detail==='battery'?'Battery':'设备状态'} onBack={onClose}/><div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8"><Card>{detail==='battery'?<><InfoRow label="电量">{fix?.battery_percent==null?'暂未上报':fix.battery_percent+'%'}</InfoRow><InfoRow label="电压">{typeof fix?.battery_voltage_v==='number'?fix.battery_voltage_v.toFixed(3)+' V':'未上报'}</InfoRow><button onClick={()=>setDetail('device')} className="mt-4 text-sm font-bold text-[#3949AB]">查看远程状态 ›</button></>:<RemoteStatus/>}</Card></div></div>;
 }
 
 

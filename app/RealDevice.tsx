@@ -6,6 +6,8 @@ export type Location = {
   device_id: string; latitude?: number; longitude?: number;
   source: "gps" | "wifi" | "lte" | "unavailable"; zone_name?: string; accuracy_m?: number;
   pdop: number | null; battery_percent: number | null;
+  battery_voltage_v?: number | null;
+  diagnostics?: { uptime_ms?: number; previous_upload_http?: number | null; previous_upload_error?: string | null; wifi_scan_count?: number | null };
   recorded_at: number; received_at: number; stale: boolean;
 };
 

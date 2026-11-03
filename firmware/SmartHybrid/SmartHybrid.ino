@@ -292,20 +292,31 @@ bool prepareTLS()
     return true;
 }
 
+int previousUploadHttp = 0;
+const char *previousUploadError = nullptr;
+int latestWifiScanCount = -1;
+
 bool uploadGPS(const String &json)
 {
+    previousUploadHttp = 0;
+    previousUploadError = "upload_config";
     if (!ENABLE_UPLOAD || strlen(UPLOAD_TOKEN) != 64) return false;
+    previousUploadError = "lte_unregistered";
     if (!isLTERegistered()) { Serial.println("4G not registered."); return false; }
+    previousUploadError = "clock_unavailable";
     if (!clockReady && !syncNetworkClock()) {
         Serial.println("Upload deferred: no usable UTC clock for certificate verification.");
         return false;
     }
+    previousUploadError = "tls_setup";
     if (!prepareTLS()) return false;
     bool success = false;
     // Clear a previous abandoned HTTP session; GPS remains on.
     modem.sendAT("+HTTPTERM"); modem.waitResponse(3000UL);
     modem.sendAT("+HTTPINIT");
+    previousUploadError = "http_init";
     if (!expectOK("HTTPINIT", 20000UL)) return false;
+    previousUploadError = "http_transfer";
     do {
         modem.sendAT("+HTTPPARA=\"SSLCFG\",0");
         if (!expectOK("HTTPS TLS context")) break;
@@ -344,9 +355,11 @@ bool uploadGPS(const String &json)
             if (complete) break;
             delay(5);
         }
-        if (!complete) { Serial.println("FAILED: HTTP result timeout"); break; }
+        if (!complete) { previousUploadError = "http_timeout"; Serial.println("FAILED: HTTP result timeout"); break; }
         Serial.print("HTTP Status: "); Serial.println(status);
+        previousUploadHttp = status;
         success = status == 200;
+        previousUploadError = success ? nullptr : "http_status";
         if (success) Serial.println("GPS upload accepted by server.");
         else if (status == 401) Serial.println("Check upload credential (never print it).");
         else if (status == 400) Serial.println("Check current GPS date/time and coordinates.");
@@ -737,6 +750,7 @@ void legacyLoop()
 int wifiCandidate=-1,wifiConfirm=0;
 bool indoorFix(int &zone) {
     int count=WiFi.scanNetworks(false,false);
+    latestWifiScanCount = count;
     if(count<0){wifiCandidate=-1;wifiConfirm=0;return false;}
     float obs[FEATURE_COUNT];for(int j=0;j<FEATURE_COUNT;j++)obs[j]=-100;
     for(int i=0;i<count;i++) {
@@ -792,6 +806,7 @@ bool lteFix(float &latitude,float &longitude,float &accuracy) {
 }
 
 void loop() {
+    latestWifiScanCount = -1;
     tryEnableAGPS();
     float lat=0,lon=0,speed=0,alt=0,pdop=0;
     int visible=0,used=0,y=0,mo=0,d=0,h=0,mi=0,s=0;uint8_t mode=0;
@@ -823,6 +838,18 @@ void loop() {
             }
         }
     }
+    // Report the preceding attempt: this upload's result is only known afterwards.
+    body.remove(body.length()-1);
+    body += ",\"battery_voltage_v\":null,\"diagnostics\":{\"uptime_ms\":";
+    body += String(millis());
+    body += ",\"previous_upload_http\":";
+    body += previousUploadHttp > 0 ? String(previousUploadHttp) : String("null");
+    body += ",\"previous_upload_error\":";
+    if (previousUploadError) { body += "\""; body += previousUploadError; body += "\""; }
+    else body += "null";
+    body += ",\"wifi_scan_count\":";
+    body += latestWifiScanCount >= 0 ? String(latestWifiScanCount) : String("null");
+    body += "}}";
     uploadGPS(body);
     // Never turn off or reinitialize GNSS during a location source switch.
     delay(10000UL);

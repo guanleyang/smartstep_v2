@@ -6,6 +6,26 @@ export function normalize(body, device, now=Date.now()) {
   const fix=body.recorded_at??now;
   if(!number(fix,now-120000,now+30000)) throw Error('Invalid fix time');
   const result={device_id:device,source:body.source,recorded_at:fix,received_at:now};
+  for(const [key,hi] of [['battery_percent',100],['battery_voltage_v',6],['pdop',100]]) {
+    if(body[key]===undefined)continue;
+    if(body[key]!==null&&!number(body[key],0,hi))throw Error('Invalid measurement');
+    result[key]=body[key];
+  }
+  if(body.diagnostics!==undefined) {
+    const d=body.diagnostics;
+    if(!d||typeof d!=='object'||Array.isArray(d))throw Error('Invalid diagnostics');
+    const out={};
+    for(const [key,lo,hi] of [['uptime_ms',0,4294967295],['previous_upload_http',100,799],['wifi_scan_count',0,1000]]) {
+      if(d[key]===undefined)continue;
+      if(d[key]!==null&&(!number(d[key],lo,hi)||!Number.isInteger(d[key])))throw Error('Invalid diagnostic number');
+      out[key]=d[key];
+    }
+    if(d.previous_upload_error!==undefined) {
+      if(d.previous_upload_error!==null&&!['upload_config','lte_unregistered','clock_unavailable','tls_setup','http_init','http_transfer','http_timeout','http_status'].includes(d.previous_upload_error))throw Error('Unknown error code');
+      out.previous_upload_error=d.previous_upload_error;
+    }
+    result.diagnostics=out;
+  }
   if(body.source==='wifi') {
     if(!Object.hasOwn(ZONES,body.zone_id)) throw Error('Unknown indoor zone');
     result.zone_id=body.zone_id;result.zone_name=ZONES[body.zone_id];
