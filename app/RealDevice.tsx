@@ -1,5 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import LiveDashboard from "./LiveDashboard";
 
 type Location = {
   device_id: string; latitude?: number; longitude?: number;
@@ -30,19 +31,22 @@ function DeviceMap({ location }: { location: Location }) {
         const circle = L.circle(point, { radius: location.accuracy_m, color: "#d97706", fillOpacity: .15 }).addTo(map);
         map.fitBounds(circle.getBounds(), { padding: [24,24], maxZoom: 16 });
       } else L.circleMarker(point, { radius: 10, color: "#3949AB", fillOpacity: .8 }).addTo(map);
-    }).catch(() => { if (!disposed) setError("Map could not load. Coordinates remain available above."); });
+    }).catch(() => { if (!disposed) setError("地图暂时无法加载，请查看下方坐标。"); });
     return () => { disposed = true; map?.remove(); };
   }, [location.latitude, location.longitude, location.source, location.accuracy_m]);
-  return <><div ref={element} className="h-[65vh] min-h-[420px] w-full rounded-2xl" aria-label="Latest reported shoe location" />{error && <p role="status">{error}</p>}</>;
+  return <div className="ss-map-wrap"><div ref={element} className="ss-map" aria-label="Latest reported shoe location" />{error && <p className="ss-map-error" role="status">{error}</p>}</div>;
 }
 
-export default function RealDevice({ onDemo }: { onDemo: () => void }) {
+export default function RealDevice({ onDemo: _onDemo }: { onDemo: () => void }) {
   const [url, setUrl] = useState("https://smartstep-gps.guanleyang007.workers.dev");
   const [device, setDevice] = useState("shoe_001");
   const [token, setToken] = useState("");
   const [connection, setConnection] = useState<{ url: string; device: string; token: string } | null>(null);
   const [location, setLocation] = useState<Location | null>(null);
-  const [status, setStatus] = useState("Enter your device connection details.");
+  const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [reachable, setReachable] = useState(false);
+  const [refresh, setRefresh] = useState(0);
   const [failed, setFailed] = useState(false);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -52,73 +56,52 @@ export default function RealDevice({ onDemo }: { onDemo: () => void }) {
     let controller: AbortController;
     async function poll() {
       controller = new AbortController();
+      if (!stopped) setLoading(true);
       const timeout = setTimeout(() => controller.abort(), 10000);
       try {
         const response = await fetch(connection!.url + "/v2/devices/" + encodeURIComponent(connection!.device) + "/location",
           { headers: { Authorization: "Bearer " + connection!.token }, cache: "no-store", signal: controller.signal });
-        if (!response.ok) throw new Error(response.status === 404 ? "No GPS location received yet." :
-          response.status === 401 ? "Read credential rejected." : "Location service unavailable.");
+        if (response.status === 404) { if (!stopped) { setReachable(true); setFailed(false); setStatus(""); setLocation(null); } return; }
+        if (!response.ok) throw new Error(response.status === 401 ? "查看凭证不正确，请在设备设置中重新连接。" : "暂时无法读取设备位置，正在自动重试。");
         const data = await response.json() as Location;
         if (!['gps','wifi','lte','unavailable'].includes(data.source) ||
             !Number.isFinite(data.received_at) || !Number.isFinite(data.recorded_at) || data.device_id !== connection!.device ||
-            ((data.source === 'gps' || data.source === 'lte') && (typeof data.latitude !== 'number' || Math.abs(data.latitude)>90 || typeof data.longitude !== 'number' || Math.abs(data.longitude)>180)) ||
-            (data.source === 'wifi' && !data.zone_name) || (data.source === 'lte' && !(data.accuracy_m! > 0))) throw new Error('Invalid location response.');
-        if (!stopped) { setLocation(data); setFailed(false); setStatus("Latest location received"); }
+            ((data.source === 'gps' || data.source === 'lte') && (typeof data.latitude !== 'number' || !Number.isFinite(data.latitude) || Math.abs(data.latitude)>90 || typeof data.longitude !== 'number' || !Number.isFinite(data.longitude) || Math.abs(data.longitude)>180)) ||
+            (data.source === 'wifi' && (typeof data.zone_name !== 'string' || !data.zone_name)) || (data.source === 'lte' && (!Number.isFinite(data.accuracy_m) || !(data.accuracy_m! > 0)))) throw new Error('收到的位置数据不完整，正在重试。');
+        if (!stopped) { setLocation(data); setReachable(true); setFailed(false); setStatus(""); }
       } catch (error) {
-        if (!stopped) { setFailed(true); setStatus(error instanceof Error ? error.message : "Connection failed."); }
+        if (!stopped) { setFailed(true); setStatus(error instanceof Error && error.name !== "AbortError" ? error.message : "连接超时，正在自动重试。"); }
       } finally {
         clearTimeout(timeout);
-        if (!stopped) timer = setTimeout(poll, 5000);
+        if (!stopped) { setLoading(false); timer = setTimeout(poll, 5000); }
       }
     }
     void poll();
     const clock = setInterval(() => setNow(Date.now()), 1000);
     return () => { stopped = true; clearTimeout(timer); clearInterval(clock); controller?.abort(); };
-  }, [connection]);
+  }, [connection, refresh]);
   function connect(event: FormEvent) {
     event.preventDefault();
     try {
       const parsed = new URL(url);
       if ((parsed.protocol !== "https:" && !(parsed.protocol === "http:" && parsed.hostname === "localhost")) ||
           parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== "/")
-        throw new Error("Use the HTTPS API origin, for example https://smartstep-gps.example.workers.dev");
-      if (!/^[a-zA-Z0-9_-]{1,64}$/.test(device) || token.length < 32) throw new Error("Check the device ID and read credential.");
-      setLocation(null); setFailed(false); setStatus("Connecting…");
+        throw new Error("请输入服务的 HTTPS 地址，不要包含路径。");
+      if (!/^[a-zA-Z0-9_-]{1,64}$/.test(device) || token.length < 32) throw new Error("请检查设备编号和查看凭证。");
+      setLocation(null); setReachable(false); setFailed(false); setStatus("");
       setConnection({ url: parsed.origin, device, token }); setToken("");
-    } catch (error) { setStatus((error as Error).message); }
+    } catch (error) { setStatus((error as Error).message); setFailed(true); }
   }
   const stale = !!location && (location.stale || now - location.received_at > 120000 || now - location.recorded_at > 120000);
-  const field = "mt-1 w-full rounded-xl border border-slate-300 p-3 text-slate-900";
-  return <main className="min-h-dvh bg-slate-50 p-4 text-slate-900 sm:p-8">
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="text-2xl font-bold">SmartStep · Real Device</h1><p>GPS + 4G shoe tracking</p></div>
-        <button onClick={onDemo} className="rounded-xl border p-3">Open demo dashboard</button>
-      </header>
-      <form onSubmit={connect} className="grid gap-4 rounded-2xl bg-white p-5 shadow-sm sm:grid-cols-2">
-        <label className="sm:col-span-2">API address<input required type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://smartstep-gps.example.workers.dev" className={field} /></label>
-        <label>Device ID<input required value={device} onChange={e => setDevice(e.target.value)} className={field} /></label>
-        <label>Read credential<input required type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} className={field} /></label>
-        <p className="text-sm text-slate-500 sm:col-span-2">Use the viewer credential. It stays in memory for this session. Device upload credentials belong on the shoe.</p>
-        <button className="rounded-xl bg-[#1A237E] p-3 font-bold text-white">Connect</button>
-        {connection && <button type="button" className="rounded-xl border p-3" onClick={() => { setConnection(null); setLocation(null); setStatus("Disconnected"); }}>Disconnect</button>}
-      </form>
-      <section className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
-        <p role="status" className="font-semibold">{status}{location && (failed || stale ? " · Last known position — not live" : " · 最新位置")}</p>
-        {location ? <>
-          <p className="text-sm text-slate-500">更新时间：{new Date(location.recorded_at).toLocaleString()}</p>
-          {location.source === 'wifi' ? <div className="rounded-2xl bg-indigo-50 p-8">
-            <p className="text-amber-700">GPS信号不稳定，采用室内定位</p>
-            <h2 className="mt-4 text-3xl font-bold">{location.zone_name}</h2>
-          </div> : location.source === 'unavailable' ? <p>暂无可用位置，正在重新定位。</p> : <>
-            <h2 className="text-xl font-bold">{location.source === 'lte' ? '预估位置 · LTE粗定位' : 'GPS定位'}</h2>
-            {location.source === 'lte' && <p>估计范围半径约 {Math.round(location.accuracy_m!)} 米；不是精确位置。</p>}
-            <DeviceMap location={location} />
-            <p className="font-mono text-sm">{location.latitude?.toFixed(6)}, {location.longitude?.toFixed(6)}</p>
-          </>}
-        </> : <p>No real position is displayed until your shoe uploads a valid GPS fix.</p>}
-      </section>
-    </div>
-  </main>;
+  const connectionStatus = !connection ? "尚未连接" : failed ? "连接异常" : !reachable ? "正在连接" : !location ? "等待设备上报" : stale ? "位置已过期" : location.source === "unavailable" ? "正在定位" : "设备数据已连接";
+  const form = <form onSubmit={connect} className="ss-form">
+    <label>设备编号<input required value={device} onChange={e => setDevice(e.target.value)} autoComplete="off" /></label>
+    <label>查看凭证<input required type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} placeholder="粘贴凭证文件中的 read 值" /></label>
+    <details><summary>高级连接设置</summary><label>服务地址<input required type="url" value={url} onChange={e => setUrl(e.target.value)} /></label></details>
+    <button className="ss-button ss-primary">{connection ? "重新连接" : "连接我的 SmartStep"}<span aria-hidden="true">→</span></button>
+    <p className="ss-footnote">查看凭证仅保留在本次页面会话中，刷新后需要重新输入。</p>
+  </form>;
+  return <LiveDashboard fix={location} connected={!!connection} device={connection?.device || device} stale={stale} error={failed ? status : ""} status={connectionStatus} loading={loading}
+    connectionForm={form} map={location && (location.source === "gps" || location.source === "lte") ? <DeviceMap location={location} /> : null}
+    refresh={() => setRefresh(v => v + 1)} disconnect={() => { setConnection(null); setLocation(null); setReachable(false); setFailed(false); setStatus(""); setLoading(false); }} />;
 }
-
