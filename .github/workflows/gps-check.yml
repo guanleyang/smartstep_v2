@@ -15,5 +15,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node --test gps-api/api.test.mjs
+      - run: node --test gps-api/hybrid.test.mjs
       - run: npm run build:pages
 

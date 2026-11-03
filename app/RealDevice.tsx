@@ -2,7 +2,8 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 type Location = {
-  device_id: string; latitude: number; longitude: number;
+  device_id: string; latitude?: number; longitude?: number;
+  source: "gps" | "wifi" | "lte" | "unavailable"; zone_name?: string; accuracy_m?: number;
   pdop: number | null; battery_percent: number | null;
   recorded_at: number; received_at: number; stale: boolean;
 };
@@ -21,19 +22,22 @@ function DeviceMap({ location }: { location: Location }) {
         css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
         document.head.appendChild(css);
       }
-      const point: [number, number] = [location.latitude, location.longitude];
-      map = L.map(element.current).setView(point, 17);
+      const point: [number, number] = [location.latitude!, location.longitude!];
+      map = L.map(element.current).setView(point, location.source === "lte" ? 15 : 17);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         { attribution: "© OpenStreetMap contributors", maxZoom: 19 }).addTo(map);
-      L.circleMarker(point, { radius: 10, color: "#3949AB", fillOpacity: .8 }).addTo(map);
+      if (location.source === "lte" && location.accuracy_m) {
+        const circle = L.circle(point, { radius: location.accuracy_m, color: "#d97706", fillOpacity: .15 }).addTo(map);
+        map.fitBounds(circle.getBounds(), { padding: [24,24], maxZoom: 16 });
+      } else L.circleMarker(point, { radius: 10, color: "#3949AB", fillOpacity: .8 }).addTo(map);
     }).catch(() => { if (!disposed) setError("Map could not load. Coordinates remain available above."); });
     return () => { disposed = true; map?.remove(); };
-  }, [location.latitude, location.longitude]);
-  return <><div ref={element} className="h-[420px] w-full rounded-2xl" aria-label="Latest reported shoe location" />{error && <p role="status">{error}</p>}</>;
+  }, [location.latitude, location.longitude, location.source, location.accuracy_m]);
+  return <><div ref={element} className="h-[65vh] min-h-[420px] w-full rounded-2xl" aria-label="Latest reported shoe location" />{error && <p role="status">{error}</p>}</>;
 }
 
 export default function RealDevice({ onDemo }: { onDemo: () => void }) {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState("https://smartstep-gps.guanleyang007.workers.dev");
   const [device, setDevice] = useState("shoe_001");
   const [token, setToken] = useState("");
   const [connection, setConnection] = useState<{ url: string; device: string; token: string } | null>(null);
@@ -50,21 +54,21 @@ export default function RealDevice({ onDemo }: { onDemo: () => void }) {
       controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
       try {
-        const response = await fetch(connection!.url + "/v1/devices/" + encodeURIComponent(connection!.device) + "/location",
+        const response = await fetch(connection!.url + "/v2/devices/" + encodeURIComponent(connection!.device) + "/location",
           { headers: { Authorization: "Bearer " + connection!.token }, cache: "no-store", signal: controller.signal });
         if (!response.ok) throw new Error(response.status === 404 ? "No GPS location received yet." :
           response.status === 401 ? "Read credential rejected." : "Location service unavailable.");
         const data = await response.json() as Location;
-        if (!Number.isFinite(data.latitude) || Math.abs(data.latitude) > 90 ||
-            !Number.isFinite(data.longitude) || Math.abs(data.longitude) > 180 ||
-            !Number.isFinite(data.received_at) || !Number.isFinite(data.recorded_at) ||
-            data.device_id !== connection!.device) throw new Error("Invalid location response.");
+        if (!['gps','wifi','lte','unavailable'].includes(data.source) ||
+            !Number.isFinite(data.received_at) || !Number.isFinite(data.recorded_at) || data.device_id !== connection!.device ||
+            ((data.source === 'gps' || data.source === 'lte') && (typeof data.latitude !== 'number' || Math.abs(data.latitude)>90 || typeof data.longitude !== 'number' || Math.abs(data.longitude)>180)) ||
+            (data.source === 'wifi' && !data.zone_name) || (data.source === 'lte' && !(data.accuracy_m! > 0))) throw new Error('Invalid location response.');
         if (!stopped) { setLocation(data); setFailed(false); setStatus("Latest location received"); }
       } catch (error) {
         if (!stopped) { setFailed(true); setStatus(error instanceof Error ? error.message : "Connection failed."); }
       } finally {
         clearTimeout(timeout);
-        if (!stopped) timer = setTimeout(poll, 10000);
+        if (!stopped) timer = setTimeout(poll, 5000);
       }
     }
     void poll();
@@ -100,17 +104,18 @@ export default function RealDevice({ onDemo }: { onDemo: () => void }) {
         {connection && <button type="button" className="rounded-xl border p-3" onClick={() => { setConnection(null); setLocation(null); setStatus("Disconnected"); }}>Disconnect</button>}
       </form>
       <section className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
-        <p role="status" className="font-semibold">{status}{location && (failed || stale ? " · Last known position — not live" : " · Recent GPS fix")}</p>
+        <p role="status" className="font-semibold">{status}{location && (failed || stale ? " · Last known position — not live" : " · 最新位置")}</p>
         {location ? <>
-          <dl className="grid gap-4 sm:grid-cols-2">
-            <div><dt>Coordinates</dt><dd className="font-mono">{location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}</dd></div>
-            <div><dt>Battery</dt><dd>{location.battery_percent == null ? "Not reported" : location.battery_percent + "%"}</dd></div>
-            <div><dt>GPS fix time</dt><dd>{new Date(location.recorded_at).toLocaleString()}</dd></div>
-            <div><dt>Server received</dt><dd>{new Date(location.received_at).toLocaleString()}</dd></div>
-            <div><dt>PDOP</dt><dd>{location.pdop ?? "Not reported"} · satellite geometry, not accuracy in metres</dd></div>
-          </dl>
-          <DeviceMap location={location} />
-          <p className="text-sm text-slate-500">Map tiles are supplied by OpenStreetMap. This version does not calculate safe zones or send safety alerts.</p>
+          <p className="text-sm text-slate-500">更新时间：{new Date(location.recorded_at).toLocaleString()}</p>
+          {location.source === 'wifi' ? <div className="rounded-2xl bg-indigo-50 p-8">
+            <p className="text-amber-700">GPS信号不稳定，采用室内定位</p>
+            <h2 className="mt-4 text-3xl font-bold">{location.zone_name}</h2>
+          </div> : location.source === 'unavailable' ? <p>暂无可用位置，正在重新定位。</p> : <>
+            <h2 className="text-xl font-bold">{location.source === 'lte' ? '预估位置 · LTE粗定位' : 'GPS定位'}</h2>
+            {location.source === 'lte' && <p>估计范围半径约 {Math.round(location.accuracy_m!)} 米；不是精确位置。</p>}
+            <DeviceMap location={location} />
+            <p className="font-mono text-sm">{location.latitude?.toFixed(6)}, {location.longitude?.toFixed(6)}</p>
+          </>}
         </> : <p>No real position is displayed until your shoe uploads a valid GPS fix.</p>}
       </section>
     </div>

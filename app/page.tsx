@@ -661,11 +661,10 @@ export default function SmartStepApp() {
   
   // 模拟电池消耗
   useEffect(() => { 
-    if (realDevice) return <RealDevice onDemo={() => setRealDevice(false)} />;
-  if (!loggedIn) return; 
+    if (realDevice || !loggedIn) return;
     const id = window.setInterval(() => setBattery(v => v <= 10 ? 95 : v - 1), 5000); 
     return () => window.clearInterval(id); 
-  }, [loggedIn]);
+  }, [loggedIn, realDevice]);
   
   // 屏幕缩小自动折叠侧边栏
   useEffect(() => { 
