@@ -255,6 +255,7 @@ String buildGPSJson(
 
 
 bool tlsReady = false;
+bool clockReady = false;
 
 bool expectOK(const char *step, uint32_t timeout = 10000UL)
 {
@@ -294,6 +295,10 @@ bool uploadGPS(const String &json)
 {
     if (!ENABLE_UPLOAD || strlen(UPLOAD_TOKEN) != 64) return false;
     if (!isLTERegistered()) { Serial.println("4G not registered."); return false; }
+    if (!clockReady && !syncNetworkClock()) {
+        Serial.println("Upload deferred: no usable UTC clock for certificate verification.");
+        return false;
+    }
     if (!prepareTLS()) return false;
     bool success = false;
     // Clear a previous abandoned HTTP session; GPS remains on.
@@ -360,7 +365,8 @@ bool setClockFromGPS(int year, int month, int day, int hour, int minute, int sec
     char clockValue[32];
     snprintf(clockValue, sizeof(clockValue), "%02d/%02d/%02d,%02d:%02d:%02d+00", year % 100, month, day, hour, minute, second);
     modem.sendAT("+CCLK=\"", clockValue, "\"");
-    return expectOK("GPS UTC modem clock");
+    clockReady = expectOK("UTC modem clock");
+    return clockReady;
 }
 
 // ========================================
@@ -807,4 +813,51 @@ void loop() {
     uploadGPS(body);
     // Never turn off or reinitialize GNSS during a location source switch.
     delay(10000UL);
+}
+
+
+// The vendor LBS type 4 includes UTC date/time, so indoor startup need not wait
+// for the first GNSS fix. No change to authmode or certificate time checks.
+bool syncNetworkClock() {
+    Serial.println("Checking modem clock before TLS:");
+    modem.sendAT("+CCLK?");
+    unsigned long started=millis();String line;
+    while(millis()-started<5000UL) {
+        while(SerialAT.available()) {
+            char c=(char)SerialAT.read();
+            if(c=='\n') {
+                line.trim();
+                if(line.startsWith("+CCLK:"))Serial.println(line);
+                if(line=="OK"||line=="ERROR")goto clock_read;
+                line="";
+            }else if(line.length()<192)line+=c;
+        }delay(5);
+    }
+clock_read:
+    Serial.println("Requesting network UTC with CLBS type 4...");
+    modem.sendAT("+CLBS=4");started=millis();line="";
+    bool found=false;int y=0,mo=0,d=0,h=0,mi=0,sec=0;
+    while(millis()-started<15000UL) {
+        while(SerialAT.available()) {
+            char c=(char)SerialAT.read();
+            if(c=='\n') {
+                line.trim();
+                if(line.startsWith("+CLBS:")) {
+                    // Log only the time fields, never credentials or identifiers.
+                    int code=-1;float a=0,b=0,accuracy=0;
+                    int parsed=sscanf(line.c_str(),"+CLBS: %d,%f,%f,%f,%d/%d/%d,%d:%d:%d",&code,&a,&b,&accuracy,&y,&mo,&d,&h,&mi,&sec);
+                    found=parsed==10&&code==0;
+                    if(!found)Serial.println("Network UTC absent or unexpected CLBS format.");
+                    goto clock_done;
+                }
+                if(line=="ERROR"||line.startsWith("+CME ERROR"))goto clock_done;
+                line="";
+            }else if(line.length()<256)line+=c;
+        }delay(5);
+    }
+clock_done:
+    unsigned long drain=millis();while(millis()-drain<300){while(SerialAT.available())SerialAT.read();delay(5);}
+    if(!found)return false;
+    Serial.printf("Network UTC: %04d-%02d-%02d %02d:%02d:%02d\n",y,mo,d,h,mi,sec);
+    return setClockFromGPS(y,mo,d,h,mi,sec);
 }
