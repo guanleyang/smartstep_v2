@@ -36,7 +36,7 @@ export function DeviceMap({ location, compact = false }: { location: Location; c
         const circle = L.circle(point, { radius: location.accuracy_m, color: "#d97706", fillOpacity: .15 }).addTo(map);
         map.fitBounds(circle.getBounds(), { padding: [24,24], maxZoom: 16, animate: false });
       } else L.circleMarker(point, { radius: 10, color: "#3949AB", fillOpacity: .8 }).addTo(map);
-      L.circle([OUTDOOR_DANGER.latitude,OUTDOOR_DANGER.longitude], {radius:OUTDOOR_DANGER.radius_m,color:'#dc2626',fillColor:'#ef4444',fillOpacity:.2,weight:2,className:'danger-geofence'}).bindTooltip('Danger Zone · 25m').addTo(map);
+      L.circle([OUTDOOR_DANGER.latitude,OUTDOOR_DANGER.longitude], {radius:OUTDOOR_DANGER.radius_m,color:'#dc2626',fillColor:'#ef4444',fillOpacity:.2,weight:2,className:'danger-geofence'}).bindTooltip(`Danger Zone · ${OUTDOOR_DANGER.radius_m}m`).addTo(map);
     }).catch(() => { if (!disposed) setError("地图暂时无法加载，请查看下方坐标。"); });
     return () => { disposed = true; map?.remove(); };
   }, [location.latitude, location.longitude, location.source, location.accuracy_m, compact]);
