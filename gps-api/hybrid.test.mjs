@@ -40,3 +40,5 @@ test('missing and null battery are supported; malformed telemetry is rejected',(
  assert.equal(normalize({...base,battery_percent:null,battery_voltage_v:null},'shoe_001').battery_percent,null);
  for(const extra of [{battery_percent:101},{battery_percent:'50'},{battery_voltage_v:-1},{diagnostics:[]},{diagnostics:{uptime_ms:-1}},{diagnostics:{wifi_scan_count:1.5}},{diagnostics:{previous_upload_error:'token text'}}])assert.throws(()=>normalize({...base,...extra},'shoe_001'));
 });
+
+test("Garage EEE is accepted and resolves to the app display name",()=>{const r=normalize({...base,source:"wifi",zone_id:"Garage_EEE"},"shoe_001");assert.equal(r.zone_name,"Garage EEE");assert.equal(r.zone_id,"Garage_EEE");assert.equal(r.latitude,undefined);});

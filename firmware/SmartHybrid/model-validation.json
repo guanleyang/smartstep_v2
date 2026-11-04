@@ -1,0 +1,87 @@
+{
+  "new_zone": "Garage_EEE",
+  "label": "Garage EEE",
+  "training_samples": 180,
+  "garage_samples": 15,
+  "zones": 12,
+  "features": 83,
+  "test_batches": [
+    {
+      "actual": "TR62_inside",
+      "samples": 15,
+      "before": {
+        "TR62_inside": 15
+      },
+      "after": {
+        "TR62_inside": 15
+      }
+    },
+    {
+      "actual": "TR63_door",
+      "samples": 15,
+      "before": {
+        "TR63_door": 15
+      },
+      "after": {
+        "TR63_door": 15
+      }
+    },
+    {
+      "actual": "TR65_door",
+      "samples": 15,
+      "before": {
+        "TR65_door": 15
+      },
+      "after": {
+        "TR65_door": 15
+      }
+    },
+    {
+      "actual": "TR67_door",
+      "samples": 15,
+      "before": {
+        "TR67_door": 15
+      },
+      "after": {
+        "TR67_door": 15
+      }
+    },
+    {
+      "actual": "TR69_door",
+      "samples": 15,
+      "before": {
+        "TR69_door": 15
+      },
+      "after": {
+        "TR69_door": 15
+      }
+    }
+  ],
+  "garage_leave_one_out": {
+    "Garage_EEE": 15
+  },
+  "garage_independent_test_samples": 0,
+  "note": "Garage EEE has one training batch only. Leave-one-out is not an independent field accuracy test. GPS priority and two-scan indoor confirmation retained.",
+  "garage_strong_features": [
+    {
+      "bssid": "B8:3A:5A:BF:88:80",
+      "median_rssi": -64.0,
+      "seen": 14
+    },
+    {
+      "bssid": "B8:3A:5A:BF:98:E0",
+      "median_rssi": -58,
+      "seen": 15
+    },
+    {
+      "bssid": "B8:3A:5A:BF:9B:40",
+      "median_rssi": -55,
+      "seen": 15
+    },
+    {
+      "bssid": "B8:3A:5A:BF:AD:60",
+      "median_rssi": -55,
+      "seen": 15
+    }
+  ]
+}
