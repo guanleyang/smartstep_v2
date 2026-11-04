@@ -29,6 +29,11 @@ export function normalize(body, device, now=Date.now()) {
   if(body.source==='wifi') {
     if(!Object.hasOwn(ZONES,body.zone_id)) throw Error('Unknown indoor zone');
     result.zone_id=body.zone_id;result.zone_name=ZONES[body.zone_id];
+    const state=body.wifi_status??'confirmed';
+    if(!['confirmed','held'].includes(state))throw Error('Invalid WiFi status');
+    const age=body.wifi_age_ms??0;
+    if(!number(age,0,119999)||!Number.isInteger(age)||(state==='held'&&body.wifi_age_ms===undefined))throw Error('Invalid WiFi age');
+    result.wifi_status=state;result.wifi_age_ms=age;result.wifi_confirmed_at=now-age;
   } else if(body.source==='gps'||body.source==='lte') {
     if(!number(body.latitude,-90,90)||!number(body.longitude,-180,180)) throw Error('Invalid coordinates');
     result.latitude=body.latitude;result.longitude=body.longitude;
@@ -36,6 +41,10 @@ export function normalize(body, device, now=Date.now()) {
       if(!number(body.accuracy_m,1,100000)) throw Error('LTE accuracy required');
       result.accuracy_m=body.accuracy_m;
     }
+  }
+  if(body.status_reason!==undefined) {
+    if(body.source!=='unavailable'||body.status_reason!=='waiting_wifi')throw Error('Invalid status reason');
+    result.status_reason=body.status_reason;
   }
   return result;
 }
@@ -47,7 +56,7 @@ export default {async fetch(request,env) {
     if(!(env.ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).includes(origin)) return reply(403,{error:'Origin denied'});
     headers['Access-Control-Allow-Origin']=origin;
   }
-  if(request.method==='OPTIONS') return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Authorization,Content-Type'}});
+  if(request.method==='OPTIONS') return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Authorization,Content-Type','Access-Control-Max-Age':'600'}});
   const match=new URL(request.url).pathname.match(/^\/v2\/devices\/([a-zA-Z0-9_-]{1,64})\/location$/);
   if(!match)return reply(404,{error:'Not found'});
   if(!['POST','GET'].includes(request.method))return reply(405,{error:'Method not allowed'});
@@ -60,7 +69,7 @@ export default {async fetch(request,env) {
       const row=await env.DB.prepare('SELECT payload FROM hybrid_locations WHERE device_id=?').bind(match[1]).first();
       if(!row)return reply(404,{error:'No location received yet'});
       const data=JSON.parse(row.payload);
-      return reply(200,{...data,stale:Date.now()-data.recorded_at>120000||Date.now()-data.received_at>120000});
+      return reply(200,{...data,stale:Date.now()-data.recorded_at>120000||Date.now()-data.received_at>120000||(data.source==='wifi'&&data.wifi_confirmed_at!==undefined&&Date.now()-data.wifi_confirmed_at>=120000)});
     }
     if(request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='application/json')return reply(415,{error:'Use application/json'});
     const reader=request.body?.getReader();if(!reader)return reply(400,{error:'Missing body'});
@@ -69,6 +78,19 @@ export default {async fetch(request,env) {
     const bytes=new Uint8Array(size);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
     let data;
     try{data=normalize(JSON.parse(new TextDecoder().decode(bytes)),match[1]);}catch{return reply(400,{error:'Invalid location payload'});}
+    if(data.source==='wifi'&&data.wifi_status==='held') {
+      const old=await env.DB.prepare('SELECT payload FROM hybrid_locations WHERE device_id=?').bind(match[1]).first();
+      if(old) {
+        const previous=JSON.parse(old.payload);
+        if(previous.source==='wifi'&&previous.zone_id===data.zone_id) {
+          const confirmed=previous.wifi_confirmed_at??previous.recorded_at;
+          if(Number.isFinite(confirmed)) {
+            data.wifi_confirmed_at=confirmed;
+            data.wifi_age_ms=Math.max(0,data.received_at-confirmed);
+          }
+        }
+      }
+    }
     const r=await env.DB.prepare('INSERT INTO hybrid_locations(device_id,recorded_at,payload) VALUES(?,?,?) ON CONFLICT(device_id) DO UPDATE SET recorded_at=excluded.recorded_at,payload=excluded.payload WHERE excluded.recorded_at>hybrid_locations.recorded_at').bind(match[1],data.recorded_at,JSON.stringify(data)).run();
     return reply(200,{ok:true,updated:(r.meta?.changes??0)>0});
   }catch{return reply(503,{error:'Location service temporarily unavailable'});}

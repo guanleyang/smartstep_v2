@@ -29,6 +29,8 @@ export default function RemoteStatus() {
       <Row label="电量" value={measurement(fix?.battery_percent,100,"%",1)}/>
       <Row label="定位方式" value={source}/>
       {fix?.source === "wifi" && <Row label="室内位置" value={fix.zone_name || "未上报"}/>}
+      {fix?.source === "wifi" && <Row label="室内位置状态" value={fix.wifi_status === "held" ? "保留上次确认位置" : "已匹配"}/>}
+      {fix?.source === "wifi" && <Row label="最后确认时间" value={date(fix.wifi_confirmed_at ?? fix.recorded_at)}/>}
       {fix?.source === "gps" && <Row label="PDOP" value={measurement(fix.pdop,100,"",2)}/>}
       <Row label="最近上传时间" value={date(fix?.received_at)}/>
       <Row label="距最近上传" value={age == null ? "未上报" : `${age} 秒`}/>
@@ -38,6 +40,6 @@ export default function RemoteStatus() {
       <Row label="上一次上传状态码" value={typeof d?.previous_upload_http === "number" && Number.isFinite(d.previous_upload_http) ? String(d.previous_upload_http) : "未上报"}/>
       <Row label="上一次上传错误" value={deviceError}/>
     </dl>
-    <p className="text-xs leading-relaxed text-slate-500">页面约每5秒读取一次。电池数据需要板子接入测量后上报。断网期间无法传回错误，恢复上传后可查看上一次上传结果。</p>
+    <p className="text-xs leading-relaxed text-slate-500">页面约每2秒读取一次。电池数据需要板子接入测量后上报。断网期间无法传回错误，恢复上传后可查看上一次上传结果。</p>
   </section>;
 }

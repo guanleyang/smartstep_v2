@@ -168,12 +168,13 @@ function LiveLocation({ compact=false }: {compact?: boolean}) {
       <div className="mb-4 text-[#3949AB]"><Icon className="text-4xl">apartment</Icon></div>
       <h3 className="text-2xl font-extrabold text-slate-900">{fix.zone_name}</h3>
       <p className="mt-3 text-sm text-slate-500">GPS信号不稳定，采用室内定位</p>
-    </div>:fix.source==='unavailable'?<p className="rounded-xl bg-slate-50 p-8 text-sm text-slate-500">暂无可用位置。</p>:<>
+      {fix.wifi_status==='held'&&<p className="mt-3 text-sm text-slate-600">暂未匹配到新位置，保留上次确认的室内位置。</p>}
+    </div>:fix.source==='unavailable'?<p className="rounded-xl bg-slate-50 p-8 text-sm text-slate-500">{fix.status_reason==='waiting_wifi'?'正在寻找室内位置，连续2分钟未匹配后尝试LTE。':'暂无可用位置。'}</p>:<>
       <div className="flex items-center justify-between gap-3 text-sm"><b>{fix.source==='gps'?'GPS位置':'预估位置 · LTE'}</b>{fix.source==='lte'&&<span className="text-xs text-amber-700">范围半径约 {Math.round(fix.accuracy_m!)} 米</span>}</div>
       <DeviceMap location={fix} compact={compact}/>
       <p className="text-sm font-mono text-slate-600">{fix.latitude?.toFixed(6)}, {fix.longitude?.toFixed(6)}</p>
     </>}
-    <p className="text-xs text-slate-400">更新时间：{new Date(fix.recorded_at).toLocaleString()}</p>
+    <p className="text-xs text-slate-400">{fix.source==='wifi'?'位置确认时间':'更新时间'}：{new Date(fix.source==='wifi'?(fix.wifi_confirmed_at??fix.recorded_at):fix.recorded_at).toLocaleString()}</p>
   </div>;
 }
 
@@ -280,7 +281,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: () => void }) {
 
 function Settings({ name, email, onLogout, setDetail }: { name: string; email: string; onLogout: () => void; setDetail: (d: Detail) => void }) {
  const live=useLiveDevice();
- return <><Header title="Settings"/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><div className="grid gap-6 lg:grid-cols-2"><Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Device</p><h2 className="mt-3 text-lg font-extrabold">SmartStep #001</h2><p className="mt-2 mb-6 text-sm text-slate-500">{live.status}</p>{live.form}{live.connected&&<button onClick={live.disconnect} className="mt-4 w-full rounded-xl border border-red-100 p-3 text-sm font-bold text-red-600">断开连接</button>}</Card><Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Location</p><InfoRow label="定位顺序">GPS → Wi-Fi → LTE</InfoRow><InfoRow label="页面读取">请求结束后约5秒</InfoRow><InfoRow label="上传方式">4G</InfoRow><p className="mt-4 text-xs leading-relaxed text-slate-400">查看凭证使用 read 值。板子的位置上报间隔由设备程序决定。</p></Card></div></div></>;
+ return <><Header title="Settings"/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><div className="grid gap-6 lg:grid-cols-2"><Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Device</p><h2 className="mt-3 text-lg font-extrabold">SmartStep #001</h2><p className="mt-2 mb-6 text-sm text-slate-500">{live.status}</p>{live.form}{live.connected&&<button onClick={live.disconnect} className="mt-4 w-full rounded-xl border border-red-100 p-3 text-sm font-bold text-red-600">断开连接</button>}</Card><Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Location</p><InfoRow label="定位顺序">GPS → Wi-Fi → LTE</InfoRow><InfoRow label="页面读取">请求结束后约2秒</InfoRow><InfoRow label="上传方式">4G</InfoRow><p className="mt-4 text-xs leading-relaxed text-slate-400">查看凭证使用 read 值。板子的位置上报间隔由设备程序决定。</p></Card></div></div></>;
 }
 
 

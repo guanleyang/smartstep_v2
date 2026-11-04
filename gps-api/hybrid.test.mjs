@@ -42,3 +42,35 @@ test('missing and null battery are supported; malformed telemetry is rejected',(
 });
 
 test("Garage EEE is accepted and resolves to the app display name",()=>{const r=normalize({...base,source:"wifi",zone_id:"Garage_EEE"},"shoe_001");assert.equal(r.zone_name,"Garage EEE");assert.equal(r.zone_id,"Garage_EEE");assert.equal(r.latitude,undefined);});
+
+test('held WiFi preserves its actual confirmation time across heartbeats',()=>{
+ const t=1800000000000;
+ const b={device_id:'shoe_001',source:'wifi',zone_id:'TR63_door',wifi_status:'held'};
+ const first=normalize({...b,wifi_age_ms:10000},'shoe_001',t);
+ const next=normalize({...b,wifi_age_ms:20000},'shoe_001',t+10000);
+ assert.equal(first.wifi_confirmed_at,t-10000);assert.equal(next.wifi_confirmed_at,first.wifi_confirmed_at);
+ assert.equal(next.wifi_status,'held');assert.equal(next.received_at,t+10000);
+ const confirmed=normalize({...b,zone_id:'TR65_door',wifi_status:'confirmed',wifi_age_ms:0},'shoe_001',t+20000);
+ assert.equal(confirmed.wifi_confirmed_at,t+20000);assert.equal(confirmed.zone_name,'TR65 门口');
+});
+test('WiFi age cannot exceed the hold window or silently invent a held fix',()=>{
+ const b={device_id:'shoe_001',source:'wifi',zone_id:'TR63_door',wifi_status:'held'};
+ for(const extra of [{},{wifi_age_ms:120000},{wifi_age_ms:-1},{wifi_age_ms:'10'},{wifi_age_ms:1,wifi_status:'other'}])assert.throws(()=>normalize({...b,...extra},'shoe_001'));
+ const legacy=normalize({...b,wifi_status:undefined},'shoe_001');assert.equal(legacy.wifi_status,'confirmed');
+ assert.equal(normalize({device_id:'shoe_001',source:'unavailable',status_reason:'waiting_wifi'},'shoe_001').status_reason,'waiting_wifi');
+});
+test('GET marks a held location stale even if a heartbeat was recently received',async()=>{
+ const now=Date.now();const read='r'.repeat(64);
+ const payload=JSON.stringify({device_id:'shoe_001',source:'wifi',zone_name:'TR63 门口',wifi_status:'held',wifi_confirmed_at:now-120001,recorded_at:now,received_at:now});
+ const env={DEVICE_CREDENTIALS:JSON.stringify({shoe_001:{read,upload:'u'.repeat(64)}}),DB:{prepare(){return{bind(){return{async first(){return{payload};}};}};}}};
+ const result=await api.fetch(new Request('https://test/v2/devices/shoe_001/location',{headers:{Authorization:'Bearer '+read}}),env);
+ assert.equal((await result.json()).stale,true);
+});
+
+test('held POST retains the server-known confirmation timestamp despite upload delay',async()=>{
+ const confirmed=Date.now()-50000;const upload='u'.repeat(64),read='r'.repeat(64);
+ let row={payload:JSON.stringify({device_id:'shoe_001',source:'wifi',zone_id:'TR63_door',wifi_confirmed_at:confirmed,recorded_at:confirmed,received_at:confirmed})};
+ const env={DEVICE_CREDENTIALS:JSON.stringify({shoe_001:{upload,read}}),DB:{prepare(){return{bind(...args){return{async first(){return row;},async run(){row={payload:args[2]};return{meta:{changes:1}};}};}};}}};
+ const result=await api.fetch(new Request('https://test/v2/devices/shoe_001/location',{method:'POST',headers:{Authorization:'Bearer '+upload,'Content-Type':'application/json'},body:JSON.stringify({device_id:'shoe_001',source:'wifi',zone_id:'TR63_door',wifi_status:'held',wifi_age_ms:10000})}),env);
+ assert.equal(result.status,200);assert.equal(JSON.parse(row.payload).wifi_confirmed_at,confirmed);assert.ok(JSON.parse(row.payload).wifi_age_ms>=50000);
+});

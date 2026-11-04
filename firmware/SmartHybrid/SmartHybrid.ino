@@ -9,9 +9,9 @@
  * Features:
  * 1. Continuous GPS tracking
  * 2. Automatic AGPS assistance
- * 3. GPS reading every 10 seconds after first fix
+ * 3. GPS polled around once per second when AT link is idle
  * 4. LTE registration monitoring
- * 5. Current GPS upload attempt every 30 seconds
+ * 5. WiFi scan/upload target every 10 seconds; hold WiFi 120 seconds
  * 6. Authenticated HTTPS location upload (hardware validation pending)
  * 7. GPS stays on continuously
  *
@@ -34,6 +34,7 @@
 #include <WiFi.h>
 #include "fingerprint_model.h"
 #include "glys_room.h"
+#include "hybrid_timing.h"
 #include "secrets.h"
 #include "root_ca.h"
 
@@ -258,9 +259,19 @@ String buildGPSJson(
 bool tlsReady = false;
 bool clockReady = false;
 
+uint32_t httpBudgetStarted = 0;
+uint32_t httpBudgetLimit = 8000;
+bool httpBudgetActive = false;
+uint32_t uploadWait(uint32_t requested) {
+    if (!httpBudgetActive) return requested;
+    uint32_t elapsed = millis()-httpBudgetStarted;
+    uint32_t remaining = elapsed < httpBudgetLimit ? httpBudgetLimit-elapsed : 1;
+    return requested < remaining ? requested : remaining;
+}
+
 bool expectOK(const char *step, uint32_t timeout = 10000UL)
 {
-    if (modem.waitResponse(timeout) == 1) return true;
+    if (modem.waitResponse(uploadWait(timeout)) == 1) return true;
     Serial.print("FAILED: "); Serial.println(step);
     return false;
 }
@@ -270,9 +281,9 @@ bool prepareTLS()
     if (tlsReady) return true;
     // A fixed filename permits an in-place certificate refresh after firmware updates.
     modem.sendAT("+CCERTDELE=\"smartstep-ca.pem\"");
-    modem.waitResponse(5000UL); // Missing file is expected on first boot.
+    modem.waitResponse(uploadWait(5000UL)); // Missing file is expected on first boot.
     modem.sendAT("+CCERTDOWN=\"smartstep-ca.pem\",", strlen(ROOT_CA));
-    if (modem.waitResponse(10000UL, ">") != 1) {
+    if (modem.waitResponse(uploadWait(10000UL), ">") != 1) {
         Serial.println("FAILED: CA certificate transfer prompt"); return false;
     }
     SerialAT.write((const uint8_t *)ROOT_CA, strlen(ROOT_CA));
@@ -312,7 +323,7 @@ bool uploadGPS(const String &json)
     if (!prepareTLS()) return false;
     bool success = false;
     // Clear a previous abandoned HTTP session; GPS remains on.
-    modem.sendAT("+HTTPTERM"); modem.waitResponse(3000UL);
+    modem.sendAT("+HTTPTERM"); modem.waitResponse(uploadWait(3000UL));
     modem.sendAT("+HTTPINIT");
     previousUploadError = "http_init";
     if (!expectOK("HTTPINIT", 20000UL)) return false;
@@ -328,7 +339,7 @@ bool uploadGPS(const String &json)
         modem.sendAT("+HTTPPARA=\"USERDATA\",\"Authorization: Bearer ", UPLOAD_TOKEN, "\"");
         if (!expectOK("authorization header")) break;
         modem.sendAT("+HTTPDATA=", json.length(), ",10000");
-        if (modem.waitResponse(10000UL, "DOWNLOAD") != 1) {
+        if (modem.waitResponse(uploadWait(10000UL), "DOWNLOAD") != 1) {
             Serial.println("FAILED: HTTPDATA prompt"); break;
         }
         SerialAT.print(json);
@@ -340,7 +351,7 @@ bool uploadGPS(const String &json)
         String line;
         int status = -1;
         bool complete = false;
-        while (millis() - started < 90000UL) {
+        while (millis() - started < 8000UL && (!httpBudgetActive || millis()-httpBudgetStarted < httpBudgetLimit)) {
             while (SerialAT.available()) {
                 char ch = (char)SerialAT.read();
                 if (ch == '\n') {
@@ -366,7 +377,7 @@ bool uploadGPS(const String &json)
         else if (status == 503) Serial.println("Check Worker DB binding and secrets.");
         else Serial.println("Upload failed. Check LTE data, modem TLS support and CA chain.");
     } while (false);
-    modem.sendAT("+HTTPTERM"); modem.waitResponse(10000UL);
+    modem.sendAT("+HTTPTERM"); modem.waitResponse(uploadWait(10000UL));
     return success;
 }
 
@@ -779,14 +790,30 @@ bool indoorFix(int &zone) {
         if(score<bestScore){best=z;bestScore=score;}
     }
     if(visible<3||best<0||bestScore>ENTER_LIMIT[best]){wifiCandidate=-1;wifiConfirm=0;return false;}
-    if(wifiCandidate==best)wifiConfirm++;else{wifiCandidate=best;wifiConfirm=1;}
-    zone=best;return wifiConfirm>=2;
+    // One strong scan updates immediately. Tighten only the floor-1 elevator.
+    if(strcmp(HYBRID_ZONE_ID[best],"SS2-3_elevator_L1")==0) {
+        const char *anchors[]={"BC:9F:E4:19:75:20","BC:9F:E4:19:7D:C0","BC:9F:E4:19:7F:C0"};
+        float anchorRssi[3]={-100.f,-100.f,-100.f};
+        for(int k=0;k<3;k++) {
+            float rssi=-100;
+            for(int j=0;j<FEATURE_COUNT;j++)if(strcmp(FEATURE_BSSID[j],anchors[k])==0){rssi=obs[j];break;}
+            anchorRssi[k]=rssi;
+        }
+        float runner=1e6;
+        for(int z=0;z<ZONE_COUNT;z++)if(z!=best) {
+            float sum=0;for(int j=0;j<FEATURE_COUNT;j++){float d=obs[j]-TEMPLATES[z][j];sum+=d*d;}
+            float score=sqrtf(sum/FEATURE_COUNT);if(score<runner)runner=score;
+        }
+        if(!floorOneGate(bestScore,runner,anchorRssi[0],anchorRssi[1],anchorRssi[2])){wifiCandidate=-1;wifiConfirm=0;return false;}
+    }
+    wifiCandidate=best;wifiConfirm=1;
+    zone=best;return true;
 }
 
 bool lteFix(float &latitude,float &longitude,float &accuracy) {
     modem.sendAT("+CLBS=1");
     unsigned long started=millis();String line;
-    while(millis()-started<15000UL) {
+    while(millis()-started<3000UL) {
         while(SerialAT.available()) {
             char c=(char)SerialAT.read();
             if(c=='\n') {
@@ -805,54 +832,111 @@ bool lteFix(float &latitude,float &longitude,float &accuracy) {
     }return false;
 }
 
-void loop() {
-    latestWifiScanCount = -1;
-    tryEnableAGPS();
+bool runtimeStarted=false, gpsActive=false, previousGpsValid=false, scanStarted=false, gpsPollStarted=false;
+uint32_t lastGpsPoll=0, lastGpsUpload=0, lastScanStart=0, fallbackWindowStart=0, lastWifiSeen=0;
+int lastConfirmedWifi=-1;
+String currentGpsBody;
+
+void refreshGps(bool force) {
+    uint32_t now=millis();
+    if(!force && gpsPollStarted && uint32_t(now-lastGpsPoll)<GPS_POLL_MS)return;
+    gpsPollStarted=true;lastGpsPoll=now;
     float lat=0,lon=0,speed=0,alt=0,pdop=0;
     int visible=0,used=0,y=0,mo=0,d=0,h=0,mi=0,s=0;uint8_t mode=0;
     bool ok=modem.getGPS(&mode,&lat,&lon,&speed,&alt,&visible,&used,&pdop,&y,&mo,&d,&h,&mi,&s);
+    gpsActive=ok&&mode>=2&&isfinite(lat)&&isfinite(lon)&&fabs(lat)<=90&&fabs(lon)<=180&&isfinite(pdop)&&pdop>0&&pdop<MAX_PDOP&&y>=2025&&y<=2099&&mo>=1&&mo<=12&&d>=1&&d<=31;
+    if(gpsActive) {
+        gpsHasFixed=true;
+        currentGpsBody=buildGPSJson(lat,lon,pdop,y,mo,d,h,mi,s);
+        currentGpsBody.remove(currentGpsBody.length()-1);currentGpsBody+=",\"source\":\"gps\"}";
+        if(!clockReady)setClockFromGPS(y,mo,d,h,mi,s);
+    }
+}
+
+void sendReport(String body,uint32_t budgetMs) {
+    body.remove(body.length()-1);
+    body+=",\"battery_voltage_v\":null,\"diagnostics\":{\"uptime_ms\":";
+    body+=String(millis());body+=",\"previous_upload_http\":";
+    body+=previousUploadHttp>0?String(previousUploadHttp):String("null");
+    body+=",\"previous_upload_error\":";
+    if(previousUploadError){body+="\"";body+=previousUploadError;body+="\"";}else body+="null";
+    body+=",\"wifi_scan_count\":";
+    body+=latestWifiScanCount>=0?String(latestWifiScanCount):String("null");body+="}}";
+    httpBudgetStarted=millis();httpBudgetLimit=budgetMs;httpBudgetActive=true;
+    uploadGPS(body);
+    httpBudgetActive=false;
+}
+
+void publishGpsIfDue() {
+    uint32_t now=millis();
+    if(gpsUploadDue(gpsActive,previousGpsValid,now,lastGpsUpload)) {
+        latestWifiScanCount=-1;
+        Serial.println("SOURCE: GPS");lastGpsUpload=now;
+        sendReport(currentGpsBody,8000);
+    }
+    previousGpsValid=gpsActive;
+    if(gpsActive)fallbackWindowStart=millis();
+}
+
+String wifiReport(int zone,bool held) {
+    String body="{\"device_id\":\"shoe_001\",\"source\":\"wifi\",\"zone_id\":\"";
+    body+=(zone==ZONE_COUNT?"Glys_Room":HYBRID_ZONE_ID[zone]);
+    body+="\",\"wifi_status\":\"";body+=held?"held":"confirmed";
+    body+="\",\"wifi_age_ms\":";body+=String(uint32_t(millis()-lastWifiSeen));body+="}";
+    Serial.print(held?"SOURCE: WIFI HELD | ":"SOURCE: WIFI | ");
+    Serial.println(zone==ZONE_COUNT?"Gly's Room":ZONE_LABEL[zone]);
+    return body;
+}
+
+void loop() {
+    if(!runtimeStarted) {
+        tryEnableAGPS();
+        runtimeStarted=true;fallbackWindowStart=millis();
+        Serial.println("WiFi target: scan + upload every 10s; LTE after 120s without a confirmed WiFi point.");
+    }
+    refreshGps(false);
+    if(gpsActive){publishGpsIfDue();delay(20);return;}
+    previousGpsValid=false;
+    uint32_t now=millis();
+    if(scanStarted && uint32_t(now-lastScanStart)<WIFI_CYCLE_MS){delay(20);return;}
+    scanStarted=true;lastScanStart=now;latestWifiScanCount=-1;
+    int zone=-1;bool matched=indoorFix(zone);
+    uint32_t scanCompleted=millis();
+    if(matched){lastConfirmedWifi=zone;lastWifiSeen=scanCompleted;fallbackWindowStart=scanCompleted;}
+    // A fix acquired during a scan wins immediately, before any indoor/LTE upload.
+    refreshGps(true);
+    if(gpsActive){publishGpsIfDue();return;}
     String body;
-    bool gps=ok&&mode>=2&&isfinite(lat)&&isfinite(lon)&&fabs(lat)<=90&&fabs(lon)<=180&&isfinite(pdop)&&pdop>0&&pdop<MAX_PDOP&&y>=2025&&y<=2099;
-    if(gps) {
-        gpsHasFixed=true;wifiCandidate=-1;wifiConfirm=0;
-        body=buildGPSJson(lat,lon,pdop,y,mo,d,h,mi,s);
-        body.remove(body.length()-1);body+=",\"source\":\"gps\"}";
-        if(!setClockFromGPS(y,mo,d,h,mi,s)){delay(10000);return;}
-        Serial.println("SOURCE: GPS");
-    }else {
-        int zone=-1;
-        if(indoorFix(zone)) {
-            body="{\"device_id\":\"shoe_001\",\"source\":\"wifi\",\"zone_id\":\"";
-            body+=(zone==ZONE_COUNT?"Glys_Room":HYBRID_ZONE_ID[zone]);body+="\"}";
-            Serial.print("SOURCE: WIFI | ");Serial.println(zone==ZONE_COUNT?"Gly's Room":ZONE_LABEL[zone]);
+    if(matched)body=wifiReport(zone,false);
+    else {
+        FallbackChoice choice=fallbackChoice(millis(),fallbackWindowStart,lastConfirmedWifi,lastWifiSeen);
+        if(choice==FallbackChoice::HeldWifi)body=wifiReport(lastConfirmedWifi,true);
+        else if(choice==FallbackChoice::Waiting) {
+            body="{\"device_id\":\"shoe_001\",\"source\":\"unavailable\",\"status_reason\":\"waiting_wifi\"}";
+            Serial.println("SOURCE: waiting for WiFi; LTE delay active");
         }else {
-            float a=0;
-            if(isLTERegistered()&&lteFix(lat,lon,a)) {
+            float lat=0,lon=0,accuracy=0;
+            bool located=isLTERegistered()&&lteFix(lat,lon,accuracy);
+            refreshGps(true);
+            if(gpsActive){publishGpsIfDue();return;}
+            if(located) {
                 body="{\"device_id\":\"shoe_001\",\"source\":\"lte\",\"latitude\":";
                 body+=String(lat,6);body+=",\"longitude\":";body+=String(lon,6);
-                body+=",\"accuracy_m\":";body+=String(a,1);body+="}";
-                Serial.println("SOURCE: LTE estimated position");
-            } else {
+                body+=",\"accuracy_m\":";body+=String(accuracy,1);body+="}";
+                Serial.println("SOURCE: LTE estimated position (WiFi absent for at least 120s)");
+            }else {
                 body="{\"device_id\":\"shoe_001\",\"source\":\"unavailable\"}";
                 Serial.println("SOURCE: no current location");
             }
         }
     }
-    // Report the preceding attempt: this upload's result is only known afterwards.
-    body.remove(body.length()-1);
-    body += ",\"battery_voltage_v\":null,\"diagnostics\":{\"uptime_ms\":";
-    body += String(millis());
-    body += ",\"previous_upload_http\":";
-    body += previousUploadHttp > 0 ? String(previousUploadHttp) : String("null");
-    body += ",\"previous_upload_error\":";
-    if (previousUploadError) { body += "\""; body += previousUploadError; body += "\""; }
-    else body += "null";
-    body += ",\"wifi_scan_count\":";
-    body += latestWifiScanCount >= 0 ? String(latestWifiScanCount) : String("null");
-    body += "}}";
-    uploadGPS(body);
-    // Never turn off or reinitialize GNSS during a location source switch.
-    delay(10000UL);
+    uint32_t elapsed=millis()-lastScanStart;
+    uint32_t budget=elapsed<9500UL?WIFI_CYCLE_MS-elapsed:500UL;
+    if(body.indexOf("\"source\":\"lte\"")>=0)budget=8000UL;
+    sendReport(body,budget);
+    Serial.print("Location cycle elapsed ms: ");Serial.println(uint32_t(millis()-lastScanStart));
+    // No extra 10s sleep after uploading. The next scan is scheduled from its start.
+    // Keep the modem/GNSS on; the idle scheduler checks GPS roughly once per second.
 }
 
 

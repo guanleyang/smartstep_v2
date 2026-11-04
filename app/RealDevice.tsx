@@ -7,6 +7,8 @@ export type Location = {
   source: "gps" | "wifi" | "lte" | "unavailable"; zone_name?: string; accuracy_m?: number;
   pdop: number | null; battery_percent: number | null;
   battery_voltage_v?: number | null;
+  wifi_status?: "confirmed" | "held"; wifi_age_ms?: number; wifi_confirmed_at?: number;
+  status_reason?: "waiting_wifi";
   diagnostics?: { uptime_ms?: number; previous_upload_http?: number | null; previous_upload_error?: string | null; wifi_scan_count?: number | null };
   recorded_at: number; received_at: number; stale: boolean;
 };
@@ -72,13 +74,13 @@ export default function RealDevice({ children }: { children: ReactNode }) {
         if (!['gps','wifi','lte','unavailable'].includes(data.source) ||
             !Number.isFinite(data.received_at) || !Number.isFinite(data.recorded_at) || data.device_id !== connection!.device ||
             ((data.source === 'gps' || data.source === 'lte') && (typeof data.latitude !== 'number' || !Number.isFinite(data.latitude) || Math.abs(data.latitude)>90 || typeof data.longitude !== 'number' || !Number.isFinite(data.longitude) || Math.abs(data.longitude)>180)) ||
-            (data.source === 'wifi' && (typeof data.zone_name !== 'string' || !data.zone_name)) || (data.source === 'lte' && (!Number.isFinite(data.accuracy_m) || !(data.accuracy_m! > 0)))) throw new Error('收到的位置数据不完整，正在重试。');
+            (data.source === 'wifi' && (typeof data.zone_name !== 'string' || !data.zone_name || (data.wifi_status !== undefined && !['confirmed','held'].includes(data.wifi_status)) || (data.wifi_status === 'held' && (!Number.isFinite(data.wifi_confirmed_at) || !Number.isFinite(data.wifi_age_ms))))) || (data.source === 'lte' && (!Number.isFinite(data.accuracy_m) || !(data.accuracy_m! > 0)))) throw new Error('收到的位置数据不完整，正在重试。');
         if (!stopped) { setLocation(data); setReachable(true); setFailed(false); setStatus(""); }
       } catch (error) {
         if (!stopped) { setFailed(true); setStatus(error instanceof Error && error.name !== "AbortError" ? error.message : "连接超时，正在自动重试。"); }
       } finally {
         clearTimeout(timeout);
-        if (!stopped) { setLoading(false); timer = setTimeout(poll, 5000); }
+        if (!stopped) { setLoading(false); timer = setTimeout(poll, 2000); }
       }
     }
     void poll();
@@ -97,7 +99,7 @@ export default function RealDevice({ children }: { children: ReactNode }) {
       setConnection({ url: parsed.origin, device, token }); setToken("");
     } catch (error) { setStatus((error as Error).message); setFailed(true); }
   }
-  const stale = !!location && (location.stale || now - location.received_at > 120000 || now - location.recorded_at > 120000);
+  const stale = !!location && (location.stale || now - location.received_at > 120000 || now - location.recorded_at > 120000 || (location.source === 'wifi' && location.wifi_confirmed_at !== undefined && now-location.wifi_confirmed_at>=120000));
   const connectionStatus = !connection ? "尚未连接" : failed ? "连接异常" : !reachable ? "正在连接" : !location ? "等待设备上报" : stale ? "位置已过期" : location.source === "unavailable" ? "正在定位" : "设备数据已连接";
   const form = <form onSubmit={connect} className="grid gap-4">
     <label className="block text-sm font-semibold text-slate-700">设备编号<input className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-normal" required value={device} onChange={e => setDevice(e.target.value)} autoComplete="off" /></label>
