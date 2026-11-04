@@ -259,19 +259,9 @@ String buildGPSJson(
 bool tlsReady = false;
 bool clockReady = false;
 
-uint32_t httpBudgetStarted = 0;
-uint32_t httpBudgetLimit = 8000;
-bool httpBudgetActive = false;
-uint32_t uploadWait(uint32_t requested) {
-    if (!httpBudgetActive) return requested;
-    uint32_t elapsed = millis()-httpBudgetStarted;
-    uint32_t remaining = elapsed < httpBudgetLimit ? httpBudgetLimit-elapsed : 1;
-    return requested < remaining ? requested : remaining;
-}
-
 bool expectOK(const char *step, uint32_t timeout = 10000UL)
 {
-    if (modem.waitResponse(uploadWait(timeout)) == 1) return true;
+    if (modem.waitResponse(timeout) == 1) return true;
     Serial.print("FAILED: "); Serial.println(step);
     return false;
 }
@@ -281,9 +271,9 @@ bool prepareTLS()
     if (tlsReady) return true;
     // A fixed filename permits an in-place certificate refresh after firmware updates.
     modem.sendAT("+CCERTDELE=\"smartstep-ca.pem\"");
-    modem.waitResponse(uploadWait(5000UL)); // Missing file is expected on first boot.
+    modem.waitResponse(5000UL); // Missing file is expected on first boot.
     modem.sendAT("+CCERTDOWN=\"smartstep-ca.pem\",", strlen(ROOT_CA));
-    if (modem.waitResponse(uploadWait(10000UL), ">") != 1) {
+    if (modem.waitResponse(10000UL, ">") != 1) {
         Serial.println("FAILED: CA certificate transfer prompt"); return false;
     }
     SerialAT.write((const uint8_t *)ROOT_CA, strlen(ROOT_CA));
@@ -307,6 +297,21 @@ int previousUploadHttp = 0;
 const char *previousUploadError = nullptr;
 int latestWifiScanCount = -1;
 
+// HTTP cleanup has its own timeout. Never inherit an expired scan deadline.
+bool closeHttpSession() {
+    modem.sendAT("+HTTPTERM");
+    int result=modem.waitResponse(10000UL);
+    // ERROR is expected when no HTTP session exists. No acknowledgement means
+    // the modem is still busy; do not immediately stack another HTTPINIT.
+    if(result==0){Serial.println("HTTP cleanup still waiting; retry on next cycle.");return false;}
+    uint32_t started=millis(),quiet=started;
+    while(uint32_t(millis()-quiet)<200UL && uint32_t(millis()-started)<1500UL) {
+        while(SerialAT.available()){SerialAT.read();quiet=millis();}
+        delay(5);
+    }
+    return true;
+}
+
 bool uploadGPS(const String &json)
 {
     previousUploadHttp = 0;
@@ -323,10 +328,15 @@ bool uploadGPS(const String &json)
     if (!prepareTLS()) return false;
     bool success = false;
     // Clear a previous abandoned HTTP session; GPS remains on.
-    modem.sendAT("+HTTPTERM"); modem.waitResponse(uploadWait(3000UL));
-    modem.sendAT("+HTTPINIT");
     previousUploadError = "http_init";
-    if (!expectOK("HTTPINIT", 20000UL)) return false;
+    if(!closeHttpSession())return false;
+    modem.sendAT("+HTTPINIT");
+    if (!expectOK("HTTPINIT", 20000UL)) {
+        Serial.println("Retrying HTTPINIT after full session cleanup...");
+        if(!closeHttpSession())return false;
+        modem.sendAT("+HTTPINIT");
+        if(!expectOK("HTTPINIT retry",20000UL)){closeHttpSession();return false;}
+    }
     previousUploadError = "http_transfer";
     do {
         modem.sendAT("+HTTPPARA=\"SSLCFG\",0");
@@ -339,7 +349,7 @@ bool uploadGPS(const String &json)
         modem.sendAT("+HTTPPARA=\"USERDATA\",\"Authorization: Bearer ", UPLOAD_TOKEN, "\"");
         if (!expectOK("authorization header")) break;
         modem.sendAT("+HTTPDATA=", json.length(), ",10000");
-        if (modem.waitResponse(uploadWait(10000UL), "DOWNLOAD") != 1) {
+        if (modem.waitResponse(10000UL, "DOWNLOAD") != 1) {
             Serial.println("FAILED: HTTPDATA prompt"); break;
         }
         SerialAT.print(json);
@@ -351,7 +361,7 @@ bool uploadGPS(const String &json)
         String line;
         int status = -1;
         bool complete = false;
-        while (millis() - started < 8000UL && (!httpBudgetActive || millis()-httpBudgetStarted < httpBudgetLimit)) {
+        while (millis() - started < 90000UL) {
             while (SerialAT.available()) {
                 char ch = (char)SerialAT.read();
                 if (ch == '\n') {
@@ -377,7 +387,7 @@ bool uploadGPS(const String &json)
         else if (status == 503) Serial.println("Check Worker DB binding and secrets.");
         else Serial.println("Upload failed. Check LTE data, modem TLS support and CA chain.");
     } while (false);
-    modem.sendAT("+HTTPTERM"); modem.waitResponse(uploadWait(10000UL));
+    closeHttpSession();
     return success;
 }
 
@@ -853,7 +863,7 @@ void refreshGps(bool force) {
     }
 }
 
-void sendReport(String body,uint32_t budgetMs) {
+void sendReport(String body) {
     body.remove(body.length()-1);
     body+=",\"battery_voltage_v\":null,\"diagnostics\":{\"uptime_ms\":";
     body+=String(millis());body+=",\"previous_upload_http\":";
@@ -862,9 +872,8 @@ void sendReport(String body,uint32_t budgetMs) {
     if(previousUploadError){body+="\"";body+=previousUploadError;body+="\"";}else body+="null";
     body+=",\"wifi_scan_count\":";
     body+=latestWifiScanCount>=0?String(latestWifiScanCount):String("null");body+="}}";
-    httpBudgetStarted=millis();httpBudgetLimit=budgetMs;httpBudgetActive=true;
+    // A scan cadence is not a safe network/TLS timeout. Let the modem finish.
     uploadGPS(body);
-    httpBudgetActive=false;
 }
 
 void publishGpsIfDue() {
@@ -872,7 +881,7 @@ void publishGpsIfDue() {
     if(gpsUploadDue(gpsActive,previousGpsValid,now,lastGpsUpload)) {
         latestWifiScanCount=-1;
         Serial.println("SOURCE: GPS");lastGpsUpload=now;
-        sendReport(currentGpsBody,8000);
+        sendReport(currentGpsBody);
     }
     previousGpsValid=gpsActive;
     if(gpsActive)fallbackWindowStart=millis();
@@ -892,7 +901,7 @@ void loop() {
     if(!runtimeStarted) {
         tryEnableAGPS();
         runtimeStarted=true;fallbackWindowStart=millis();
-        Serial.println("WiFi target: scan + upload every 10s; LTE after 120s without a confirmed WiFi point.");
+        Serial.println("WiFi target: 10s between scan starts; HTTP may extend a cycle. LTE after 120s without confirmed WiFi.");
     }
     refreshGps(false);
     if(gpsActive){publishGpsIfDue();delay(20);return;}
@@ -930,10 +939,7 @@ void loop() {
             }
         }
     }
-    uint32_t elapsed=millis()-lastScanStart;
-    uint32_t budget=elapsed<9500UL?WIFI_CYCLE_MS-elapsed:500UL;
-    if(body.indexOf("\"source\":\"lte\"")>=0)budget=8000UL;
-    sendReport(body,budget);
+    sendReport(body);
     Serial.print("Location cycle elapsed ms: ");Serial.println(uint32_t(millis()-lastScanStart));
     // No extra 10s sleep after uploading. The next scan is scheduled from its start.
     // Keep the modem/GNSS on; the idle scheduler checks GPS roughly once per second.
