@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import RealDevice, { DeviceMap, useLiveDevice } from "./RealDevice";
 import RemoteStatus from "./RemoteStatus";
+import { DangerProvider, DangerBadge, DangerAlerts, DangerToast, useDangerZones } from "./DangerZones";
 
 type Tab = "home" | "map" | "alerts" | "settings";
 type Detail = "battery" | "device" | null;
@@ -163,6 +164,7 @@ function LiveLocation({ compact=false }: {compact?: boolean}) {
   if(!live.connected)return <div className="rounded-xl bg-slate-50 p-8 text-sm text-slate-500">请在 Settings 中连接设备。</div>;
   if(!fix)return <div className="rounded-xl bg-slate-50 p-8 text-sm text-slate-500">等待设备上报位置。</div>;
   return <div className="space-y-4">
+    <DangerBadge/>
     {(live.stale||live.error)&&<p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">最后已知位置，当前数据已过期或连接中断。</p>}
     {fix.source==='wifi'?<div className="rounded-2xl bg-indigo-50 p-6 sm:p-8">
       <div className="mb-4 text-[#3949AB]"><Icon className="text-4xl">apartment</Icon></div>
@@ -297,7 +299,7 @@ function BottomNav({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => void
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex h-[68px] border-t border-slate-200/80 bg-white/95 backdrop-blur shadow-[0_-4px_24px_rgba(15,23,42,.06)] md:hidden pb-safe">
       {tabs.map(([id, icon, label]) => (
-        <button key={id} onClick={() => setTab(id)} className={`relative flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-bold transition-colors ${tab === id ? "text-[#1A237E]" : "text-slate-400 hover:text-slate-600"}`}>
+        <button aria-label={label} key={id} onClick={() => setTab(id)} className={`relative flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-bold transition-colors ${tab === id ? "text-[#1A237E]" : "text-slate-400 hover:text-slate-600"}`}>
           <Icon className={`text-2xl transition-transform ${tab === id ? "scale-110" : ""}`}>{icon}</Icon>
           {label}
           {id === "alerts" && unread > 0 && <span className="absolute right-[22%] top-1.5 grid min-w-[18px] h-[18px] place-items-center rounded-full border-2 border-white bg-red-500 px-1 text-[9px] text-white leading-none shadow-sm">{unread}</span>}
@@ -321,7 +323,7 @@ function SideNav({ tab, setTab, unread, name, collapsed, onToggle, onLogout }: {
       
       <nav className="space-y-1.5">
         {tabs.map(([id, icon, label]) => (
-          <button title={collapsed?label:undefined} key={id} onClick={() => setTab(id)} className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${tab === id ? "bg-white text-[#1A237E] shadow-lg" : "text-indigo-100 hover:bg-white/10"}`}>
+          <button aria-label={label} title={collapsed?label:undefined} key={id} onClick={() => setTab(id)} className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${tab === id ? "bg-white text-[#1A237E] shadow-lg" : "text-indigo-100 hover:bg-white/10"}`}>
             <Icon className="shrink-0">{icon}</Icon>
             {!collapsed && label}
             {id === "alerts" && unread > 0 && <span className={`${collapsed ? "absolute right-2 top-2" : "ml-auto"} rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] text-white shadow-sm font-bold leading-none`}>{unread}</span>}
@@ -349,13 +351,20 @@ function OriginalApp() {
   const live=useLiveDevice();
   const [loggedIn, setLoggedIn] = useState(true);
   const [email, setEmail] = useState("SmartStep");
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>(()=>typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("view")==="alerts"?"alerts":"home");
   const [detail, setDetail] = useState<Detail>(null);
   const [battery, setBattery] = useState(78);
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const {alerts}=useDangerZones();
   const [navCollapsed, setNavCollapsed] = useState(false);
   
   const name = useMemo(() => email.split("@")[0] || "demo", [email]);
+
+  useEffect(()=>{
+    if(!('serviceWorker' in navigator))return;
+    const openAlerts=(event:MessageEvent)=>{if(event.data?.type==='smartstep-open-alerts'){setDetail(null);setTab('alerts');}};
+    navigator.serviceWorker.addEventListener('message',openAlerts);
+    return ()=>navigator.serviceWorker.removeEventListener('message',openAlerts);
+  },[]);
 
   // Register the installable mobile web app shell.
   useEffect(() => {
@@ -400,9 +409,11 @@ function OriginalApp() {
       <div className={`min-h-dvh transition-[margin] duration-300 ${navCollapsed ? "md:ml-[76px]" : "md:ml-64"}`}>
         {tab === "home" && <Home name={name} battery={battery} alerts={alerts} setTab={setTab} setDetail={setDetail} />}
         {tab === "map" && <MapPage onBack={() => setTab("home")} battery={battery} />}
-        {tab === "alerts" && <><Header title="Alerts"/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><Card><p className="text-sm text-slate-500">暂无通知。当前仅接入定位，尚未接入设备报警。</p></Card></div></>}
+        {tab === "alerts" && <><Header title="Alerts"/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><DangerAlerts/></div></>}
         {tab === "settings" && <Settings name={name} email={email} setDetail={setDetail} onLogout={() => { live.disconnect(); setTab("settings"); }} />}
       </div>
+
+      <DangerToast onView={()=>{setDetail(null);setTab("alerts");}}/>
 
       {/* 详情浮层 */}
       {detail && <DetailPage detail={detail} battery={battery} onClose={() => setDetail(null)} setDetail={setDetail} />}
@@ -411,4 +422,4 @@ function OriginalApp() {
 }
 
 
-export default function SmartStepApp() { return <RealDevice><OriginalApp/></RealDevice>; }
+export default function SmartStepApp() { return <RealDevice><DangerProvider><OriginalApp/></DangerProvider></RealDevice>; }

@@ -1,10 +1,11 @@
 "use client";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createContext, ReactNode, useContext } from "react";
+import { OUTDOOR_DANGER } from "./danger-zones.mjs";
 
 export type Location = {
   device_id: string; latitude?: number; longitude?: number;
-  source: "gps" | "wifi" | "lte" | "unavailable"; zone_name?: string; accuracy_m?: number;
+  source: "gps" | "wifi" | "lte" | "unavailable"; zone_id?: string; zone_name?: string; accuracy_m?: number;
   pdop: number | null; battery_percent: number | null;
   battery_voltage_v?: number | null;
   wifi_status?: "confirmed" | "held"; wifi_age_ms?: number; wifi_confirmed_at?: number;
@@ -35,6 +36,7 @@ export function DeviceMap({ location, compact = false }: { location: Location; c
         const circle = L.circle(point, { radius: location.accuracy_m, color: "#d97706", fillOpacity: .15 }).addTo(map);
         map.fitBounds(circle.getBounds(), { padding: [24,24], maxZoom: 16, animate: false });
       } else L.circleMarker(point, { radius: 10, color: "#3949AB", fillOpacity: .8 }).addTo(map);
+      L.circle([OUTDOOR_DANGER.latitude,OUTDOOR_DANGER.longitude], {radius:OUTDOOR_DANGER.radius_m,color:'#dc2626',fillColor:'#ef4444',fillOpacity:.2,weight:2,className:'danger-geofence'}).bindTooltip('Danger Zone · 25m').addTo(map);
     }).catch(() => { if (!disposed) setError("地图暂时无法加载，请查看下方坐标。"); });
     return () => { disposed = true; map?.remove(); };
   }, [location.latitude, location.longitude, location.source, location.accuracy_m, compact]);

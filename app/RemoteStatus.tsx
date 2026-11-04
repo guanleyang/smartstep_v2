@@ -1,5 +1,6 @@
 "use client";
 import { useLiveDevice } from "./RealDevice";
+import { DangerBadge } from "./DangerZones";
 
 const errors: Record<string, string> = {
   upload_config: "上传配置不完整", lte_unregistered: "4G未注册",
@@ -22,6 +23,7 @@ export default function RemoteStatus() {
     {!live.connected && <p className="text-sm text-slate-500">请先在 Settings 中连接设备。</p>}
     {live.error && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">页面读取异常：{live.error}</p>}
     {live.stale && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">超过2分钟未收到新数据，以下是最后一次上报。设备可能断网或已关机。</p>}
+    <DangerBadge/>
     <dl>
       <Row label="连接状态" value={live.status}/>
       <Row label="设备编号" value={fix?.device_id || "未上报"}/>
