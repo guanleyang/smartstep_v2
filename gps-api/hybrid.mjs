@@ -6,9 +6,9 @@ export function normalize(body, device, now=Date.now()) {
   const fix=body.recorded_at??now;
   if(!number(fix,now-120000,now+30000)) throw Error('Invalid fix time');
   const result={device_id:device,source:body.source,recorded_at:fix,received_at:now};
-  for(const [key,hi] of [['battery_percent',100],['battery_voltage_v',6],['pdop',100]]) {
+  for(const [key,lo,hi] of [['battery_percent',0,100],['battery_voltage_v',0,6],['battery_current_ma',-3200,3200],['pdop',0,100]]) {
     if(body[key]===undefined)continue;
-    if(body[key]!==null&&!number(body[key],0,hi))throw Error('Invalid measurement');
+    if(body[key]!==null&&!number(body[key],lo,hi))throw Error('Invalid measurement');
     result[key]=body[key];
   }
   if(body.diagnostics!==undefined) {

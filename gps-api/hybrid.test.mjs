@@ -27,16 +27,22 @@ test('telemetry survives authenticated storage for every location source without
  let row;const token='u'.repeat(64),read='r'.repeat(64);
  const env={DEVICE_CREDENTIALS:JSON.stringify({shoe_001:{upload:token,read}}),DB:{prepare(){return{bind(...args){return{async first(){return row;},async run(){row={payload:args[2]};return{meta:{changes:1}};}};}};}}};
  const telemetry={battery_percent:0,battery_voltage_v:3.4,pdop:2.1,diagnostics:{uptime_ms:10000,previous_upload_http:715,previous_upload_error:'http_status',wifi_scan_count:0,secret:'never store'}};
+ const currentBySource={gps:-125.6,wifi:53.3,lte:0,unavailable:null};
  for(const b of [base,{...base,source:'wifi',zone_id:'Glys_Room'},{...base,source:'lte',accuracy_m:550},{...base,source:'unavailable'}]){
    const url='https://test/v2/devices/shoe_001/location';
-   assert.equal((await api.fetch(new Request(url,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({...b,...telemetry})}),env)).status,200);
+   const current=currentBySource[b.source];
+   assert.equal((await api.fetch(new Request(url,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({...b,...telemetry,battery_current_ma:current})}),env)).status,200);
    const data=await (await api.fetch(new Request(url,{headers:{Authorization:'Bearer '+read}}),env)).json();
+   assert.equal(data.battery_current_ma,current);
    assert.equal(data.battery_percent,0);assert.equal(data.battery_voltage_v,3.4);assert.equal(data.diagnostics.previous_upload_http,715);assert.equal(data.diagnostics.wifi_scan_count,0);assert.equal(data.diagnostics.secret,undefined);
  }
 });
 
 test('missing and null battery are supported; malformed telemetry is rejected',()=>{
  assert.equal(normalize(base,'shoe_001').battery_voltage_v,undefined);
+ assert.equal(normalize(base,'shoe_001').battery_current_ma,undefined);
+ assert.throws(()=>normalize({...base,battery_current_ma:'-125.6'},'shoe_001'));
+ assert.throws(()=>normalize({...base,battery_current_ma:3201},'shoe_001'));
  assert.equal(normalize({...base,battery_percent:null,battery_voltage_v:null},'shoe_001').battery_percent,null);
  for(const extra of [{battery_percent:101},{battery_percent:'50'},{battery_voltage_v:-1},{diagnostics:[]},{diagnostics:{uptime_ms:-1}},{diagnostics:{wifi_scan_count:1.5}},{diagnostics:{previous_upload_error:'token text'}}])assert.throws(()=>normalize({...base,...extra},'shoe_001'));
 });

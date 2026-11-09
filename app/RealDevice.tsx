@@ -8,6 +8,7 @@ export type Location = {
   source: "gps" | "wifi" | "lte" | "unavailable"; zone_id?: string; zone_name?: string; accuracy_m?: number;
   pdop: number | null; battery_percent: number | null;
   battery_voltage_v?: number | null;
+  battery_current_ma?: number | null;
   wifi_status?: "confirmed" | "held"; wifi_age_ms?: number; wifi_confirmed_at?: number;
   status_reason?: "waiting_wifi";
   diagnostics?: { uptime_ms?: number; previous_upload_http?: number | null; previous_upload_error?: string | null; wifi_scan_count?: number | null };

@@ -35,6 +35,7 @@
 #include "fingerprint_model.h"
 #include "glys_room.h"
 #include "hybrid_timing.h"
+#include "battery_ina219.h"
 #include "secrets.h"
 #include "root_ca.h"
 
@@ -422,6 +423,9 @@ void setup()
     pinMode(BOARD_POWERON_PIN, OUTPUT);
     digitalWrite(BOARD_POWERON_PIN, HIGH);
 #endif
+    Wire.begin(21, 22);
+    Wire.setClock(100000);
+    Wire.setTimeOut(100);
 
 #ifdef MODEM_RESET_PIN
     pinMode(MODEM_RESET_PIN, OUTPUT);
@@ -865,7 +869,17 @@ void refreshGps(bool force) {
 
 void sendReport(String body) {
     body.remove(body.length()-1);
-    body+=",\"battery_voltage_v\":null,\"diagnostics\":{\"uptime_ms\":";
+    float batteryVoltage, batteryCurrentMA;
+    if (BatteryMonitor::read(batteryVoltage, batteryCurrentMA)) {
+        body += ",\"battery_voltage_v\":";
+        body += String(batteryVoltage, 3);
+        body += ",\"battery_current_ma\":";
+        body += String(batteryCurrentMA, 1);
+        Serial.printf("BATTERY: %.3f V | %+.1f mA\n", batteryVoltage, batteryCurrentMA);
+    } else {
+        body += ",\"battery_voltage_v\":null,\"battery_current_ma\":null";
+    }
+    body+=",\"diagnostics\":{\"uptime_ms\":";
     body+=String(millis());body+=",\"previous_upload_http\":";
     body+=previousUploadHttp>0?String(previousUploadHttp):String("null");
     body+=",\"previous_upload_error\":";

@@ -8,7 +8,7 @@ let mode='legacy';const errors=[];page.on('pageerror',e=>errors.push(e.message))
 await page.route('https://smartstep-gps.guanleyang007.workers.dev/v2/**',async route=>{
  if(mode==='401'){await route.fulfill({status:401,body:'{}'});return;}
  const data={device_id:'shoe_001',source:'wifi',zone_name:"Gly's Room",recorded_at:Date.now(),received_at:Date.now(),stale:false};
- if(mode!=='legacy')Object.assign(data,{battery_percent:0,battery_voltage_v:3.612,diagnostics:{uptime_ms:120000,previous_upload_http:715,previous_upload_error:'http_status',wifi_scan_count:0}});
+ if(mode!=='legacy')Object.assign(data,{battery_percent:0,battery_voltage_v:3.612,battery_current_ma:mode==='gps'?53.3:mode==='idle'?0:-125.6,diagnostics:{uptime_ms:120000,previous_upload_http:715,previous_upload_error:'http_status',wifi_scan_count:0}});
  if(mode==='stale'){data.recorded_at-=180000;data.received_at-=180000;data.stale=true;}
  if(mode==='gps'){data.source='gps';data.latitude=1.35;data.longitude=103.68;data.pdop=2.1;}
  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
@@ -29,8 +29,12 @@ try{
  assert.ok(await panel.getByText('未上报',{exact:true}).count()>=4);
  async function refresh(next){mode=next;await panel.getByRole('button',{name:'刷新状态',exact:true}).click();}
  await refresh('telemetry');await panel.getByText('3.612 V',{exact:true}).waitFor();await panel.getByText('0.0%',{exact:true}).waitFor();await panel.getByText('715',{exact:true}).waitFor();await panel.getByText('0 个',{exact:true}).waitFor();
+ await panel.getByText('-125.6 mA',{exact:true}).waitFor();await panel.getByText('净充电',{exact:true}).waitFor();
+ await refresh('idle');await panel.getByText('0.0 mA',{exact:true}).waitFor();await panel.getByText('净电流接近零',{exact:true}).waitFor();
  await refresh('gps');await panel.getByText('GPS',{exact:true}).waitFor();await panel.getByText('2.10',{exact:true}).waitFor();
+ await panel.getByText('+53.3 mA',{exact:true}).waitFor();await panel.getByText('净放电',{exact:true}).waitFor();
  await refresh('stale');await panel.getByText(/超过2分钟未收到新数据/).waitFor();
+ await panel.getByText('上次上报 · 净充电',{exact:true}).waitFor();
  await refresh('401');await panel.getByRole('alert').filter({hasText:'查看凭证不正确'}).waitFor();assert.equal(await panel.getByText('3.612 V',{exact:true}).count(),1);
  await refresh('telemetry');await panel.getByText('设备数据已连接',{exact:true}).waitFor();
  assert.equal(await panel.getByRole('alert').count(),0);

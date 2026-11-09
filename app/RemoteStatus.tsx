@@ -1,6 +1,7 @@
 "use client";
 import { useLiveDevice } from "./RealDevice";
 import { DangerBadge } from "./DangerZones";
+import { batteryReadings } from "./battery-readings";
 
 const errors: Record<string, string> = {
   upload_config: "上传配置不完整", lte_unregistered: "4G未注册",
@@ -15,6 +16,7 @@ const measurement = (value: unknown, max: number, unit: string, digits: number) 
 const date = (value?: number) => typeof value === "number" && Number.isFinite(value) ? new Date(value).toLocaleString() : "未上报";
 export default function RemoteStatus() {
   const live = useLiveDevice(); const fix = live.location; const d = fix?.diagnostics;
+  const battery = batteryReadings(fix);
   const age = fix ? Math.max(0, Math.floor((Date.now()-fix.received_at)/1000)) : null;
   const source = fix ? { gps: "GPS", wifi: "Wi-Fi 室内定位", lte: "LTE 预估位置", unavailable: "暂无可用位置" }[fix.source] : "未上报";
   const deviceError = d && Object.hasOwn(d,"previous_upload_error") ? d.previous_upload_error == null ? d.previous_upload_http == null ? "尚无上一次上传结果" : "上一次上传未报告错误" : errors[d.previous_upload_error] || "未知错误代码" : "未上报";
@@ -27,7 +29,9 @@ export default function RemoteStatus() {
     <dl>
       <Row label="连接状态" value={live.status}/>
       <Row label="设备编号" value={fix?.device_id || "未上报"}/>
-      <Row label="电池电压" value={measurement(fix?.battery_voltage_v,6," V",3)}/>
+      <Row label="电池电压" value={battery.voltage}/>
+      <Row label="电池净电流" value={battery.current}/>
+      <Row label="电池状态" value={battery.stale && battery.available ? `上次上报 · ${battery.state}` : battery.state}/>
       <Row label="电量" value={measurement(fix?.battery_percent,100,"%",1)}/>
       <Row label="定位方式" value={source}/>
       {fix?.source === "wifi" && <Row label="室内位置" value={fix.zone_name || "未上报"}/>}
