@@ -14,13 +14,13 @@ await page.route('https://smartstep-gps.guanleyang007.workers.dev/v2/**',async r
  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
 });
 try{
- await page.goto('http://127.0.0.1:5174/smartstep_v2/');
- await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await page.goto((process.env.SMARTSTEP_TEST_URL || 'http://127.0.0.1:5174/smartstep_v2/'));
+ await page.getByRole('button',{name:'设置',exact:true}).click();
  await page.getByLabel('查看凭证',{exact:true}).fill('r'.repeat(64));await page.getByRole('button',{name:'连接我的 SmartStep'}).click();
- await page.getByText('设备数据已连接',{exact:true}).waitFor();await page.getByRole('button',{name:'Home',exact:true}).click();
+ await page.getByText('设备数据已连接',{exact:true}).waitFor();await page.getByRole('button',{name:'首页',exact:true}).click();
  await page.getByRole('heading',{name:'TR63 门口',exact:true}).waitFor();
  const before=requests;state='held';await page.getByText('暂未匹配到新位置，保留上次确认的室内位置。',{exact:true}).waitFor({timeout:4500});assert.ok(requests>before);
- assert.ok((await page.getByText(/位置确认时间/).innerText()).includes(new Date(confirmedAt).toLocaleString()));
+ assert.ok((await page.getByText(/位置确认时间/).innerText()).includes(new Date(confirmedAt).toLocaleString('zh-CN')));
  await page.screenshot({path:'../../outputs/SmartStep-held-wifi-mobile.png',fullPage:true});
  state='new';await page.getByRole('heading',{name:'TR65 门口',exact:true}).waitFor({timeout:4500});assert.equal(await page.getByText('暂未匹配到新位置，保留上次确认的室内位置。',{exact:true}).count(),0);
  state='gps';await page.locator('.leaflet-container').waitFor({timeout:4500});
