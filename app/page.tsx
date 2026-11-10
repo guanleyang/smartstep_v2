@@ -142,12 +142,25 @@ function MapPage({ onBack, battery }: { onBack: () => void; battery: number }) {
 }
 
 
-function Settings({ name, email, onLogout, setDetail }: { name: string; email: string; onLogout: () => void; setDetail: (d: Detail) => void }) {
-  const {t}=useLanguage();
- const live=useLiveDevice();
- return <><Header title={t("设置","Settings")}/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><div className="grid gap-6 lg:grid-cols-2"><Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("设备","Device")}</p><h2 className="mt-3 text-lg font-extrabold">SmartStep #001</h2><p className="mt-2 mb-6 text-sm text-slate-500">{live.status}</p>{live.form}{live.connected&&<button onClick={live.disconnect} className="mt-4 w-full rounded-xl border border-red-100 p-3 text-sm font-bold text-red-600">{t("断开连接","Disconnect")}</button>}</Card><Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("位置","Location")}</p><InfoRow label={t("定位顺序","Location priority")}>GPS → Wi-Fi → LTE</InfoRow><InfoRow label={t("页面读取","Page refresh")}>{t("请求结束后约2秒","About 2 seconds after each request")}</InfoRow><InfoRow label={t("上传方式","Upload connection")}>4G</InfoRow><p className="mt-4 text-xs leading-relaxed text-slate-400">{t("查看凭证使用 read 值。板子的位置上报间隔由设备程序决定。","Use the read value as your token. The firmware controls how often the device uploads.")}</p></Card></div></div></>;
-}
+function Settings() {
+  const {t} = useLanguage();
+  const live = useLiveDevice();
 
+  return <>
+    <Header title={t("设置", "Settings")}/>
+    <div className="mx-auto max-w-xl p-4 sm:p-6 lg:p-8">
+      <Card>
+        <p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("设备", "Device")}</p>
+        <h2 className="mt-3 text-lg font-extrabold">SmartStep #001</h2>
+        <p className="mt-2 mb-6 text-sm text-slate-500">{live.status}</p>
+        {live.form}
+        {live.connected && <button onClick={live.disconnect} className="mt-4 w-full rounded-xl border border-red-100 p-3 text-sm font-bold text-red-600">
+          {t("断开连接", "Disconnect")}
+        </button>}
+      </Card>
+    </div>
+  </>;
+}
 
 
 function DetailPage({ detail, battery, onClose, setDetail }: { detail: Exclude<Detail, null>; battery: number; onClose: () => void; setDetail: (d: Detail) => void }) {
@@ -288,7 +301,7 @@ function OriginalApp() {
         {tab === "home" && <Home name={name} battery={battery} alerts={alerts} setTab={setTab} setDetail={setDetail} />}
         {tab === "map" && <MapPage onBack={() => setTab("home")} battery={battery} />}
         {tab === "alerts" && <><Header title={t("通知","Alerts")}/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><DangerAlerts/></div></>}
-        {tab === "settings" && <Settings name={name} email={email} setDetail={setDetail} onLogout={() => { live.disconnect(); setTab("settings"); }} />}
+        {tab === "settings" && <Settings />}
       </div>
 
       <DangerToast onView={()=>{setDetail(null);setTab("alerts");}}/>
