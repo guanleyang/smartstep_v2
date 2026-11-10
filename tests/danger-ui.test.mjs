@@ -17,7 +17,7 @@ await page.route('https://smartstep-gps.guanleyang007.workers.dev/v2/**',async r
 });
 const systemCount=()=>page.evaluate(()=>window.__systemAlerts.length);
 async function closeToast(){const button=page.getByRole('button',{name:'关闭危险区提醒',exact:true});if(await button.count())await button.click();}
-async function query(next){mode=next;await Promise.all([page.waitForResponse(r=>r.url().includes('/v2/')&&r.status()===200),page.getByRole('button',{name:'查询当前位置',exact:true}).click()]);}
+async function query(next){mode=next;await Promise.all([page.waitForResponse(r=>r.url().includes('/v2/')&&r.status()===200),page.getByRole('button',{name:'刷新当前位置',exact:true}).click()]);}
 try{
  await page.goto((process.env.SMARTSTEP_TEST_URL || 'http://127.0.0.1:5174/smartstep_v2/'));
  await page.getByRole('button',{name:'设置',exact:true}).click();await page.getByLabel('查看凭证',{exact:true}).fill('r'.repeat(64));await page.getByRole('button',{name:'连接我的 SmartStep'}).click();await page.getByText('设备数据已连接',{exact:true}).waitFor();

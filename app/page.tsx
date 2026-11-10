@@ -114,7 +114,7 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
     ? (readings.stale ? t("上次上报 · ","Last report · ") : "") + readings.state + " · " + readings.current
     : t("等待设备上报","Waiting for a device report");
   return <>
-    <Header title={t("概览","Overview")} action={<button onClick={live.query} disabled={!live.connected||live.loading} className="icon-button" aria-label={t("查询当前位置","Refresh current location")}><Icon>refresh</Icon></button>}/>
+    <Header title={t("概览","Overview")} action={<button onClick={live.query} disabled={!live.connected||live.loading} className="icon-button" aria-label={t("刷新当前位置","Refresh current location")}><Icon>refresh</Icon></button>}/>
     <div className="mx-auto max-w-[1500px] p-3.5 sm:p-6 lg:p-8">
       <div className="mb-7 hidden items-center justify-between gap-4 sm:flex"><div><h2 className="text-2xl font-extrabold tracking-tight text-slate-900">SmartStep #001</h2><p className="mt-1 text-sm text-slate-500">{live.status}</p></div><button onClick={()=>setTab('settings')} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-[#1A237E]">{t("设备设置","Device settings")}</button></div>
       <section className="relative mb-4 overflow-hidden rounded-[26px] bg-gradient-to-br from-[#111858] via-[#202a82] to-[#5264d8] p-5 text-white shadow-lg sm:hidden">
@@ -127,7 +127,7 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
         <Card onClick={()=>setDetail('battery')} className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("电池","Battery")}</p><p className="mt-4 text-3xl font-black text-slate-700">{batteryValue}</p><p className="mt-3 text-xs text-slate-500">{batteryStatus}</p></Card>
         <Card className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("定位方式","Location source")}</p><p className="mt-4 text-xl font-extrabold text-[#1A237E]">{source}</p><p className="mt-3 text-xs text-slate-400">GPS → Wi-Fi → LTE</p></Card>
         <Card className="md:col-span-2 lg:col-span-2"><div className="mb-4 flex items-center justify-between"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("当前位置","Current location")}</p><button onClick={()=>setTab('map')} className="text-xs font-bold text-[#3949AB]">{t("查看位置 ›","View location ›")}</button></div><LiveLocation compact/></Card>
-        <Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("快捷操作","Quick actions")}</p><div className="mt-5 grid grid-cols-2 gap-3">{[['my_location',t("查询位置","Refresh location"),live.query],['tune',t("设备连接","Connect device"),()=>setTab('settings')],['battery_charging_full',t("电池信息","Battery details"),()=>setDetail('battery')],['monitor_heart',t("远程状态","Remote status"),()=>setDetail('device')]].map(([icon,label,action])=><button key={label as string} onClick={action as ()=>void} className="flex min-h-24 flex-col items-start justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-xs font-bold text-slate-600"><Icon className="text-[#3949AB]">{icon as string}</Icon>{label as string}</button>)}</div></Card>
+        <Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("快捷操作","Quick actions")}</p><div className="mt-5 grid grid-cols-2 gap-3">{[['my_location',t("刷新位置","Refresh location"),live.query],['tune',t("设备连接","Connect device"),()=>setTab('settings')],['battery_charging_full',t("电池信息","Battery details"),()=>setDetail('battery')],['monitor_heart',t("远程状态","Remote status"),()=>setDetail('device')]].map(([icon,label,action])=><button key={label as string} onClick={action as ()=>void} className="flex min-h-24 flex-col items-start justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-xs font-bold text-slate-600"><Icon className="text-[#3949AB]">{icon as string}</Icon>{label as string}</button>)}</div></Card>
       </div>
     </div>
   </>;
@@ -138,7 +138,7 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
 function MapPage({ onBack, battery }: { onBack: () => void; battery: number }) {
   const {t}=useLanguage();
  const live=useLiveDevice();
- return <><Header title={t("位置","Location")} onBack={onBack} action={<button onClick={live.query} disabled={!live.connected||live.loading} className="icon-button" aria-label={t("查询当前位置","Refresh current location")}><Icon>refresh</Icon></button>}/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">{live.error&&<p role="alert" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{live.error}</p>}<Card><LiveLocation/></Card></div></>;
+ return <><Header title={t("位置","Location")} onBack={onBack} action={<button onClick={live.query} disabled={!live.connected||live.loading} className="icon-button" aria-label={t("刷新当前位置","Refresh current location")}><Icon>refresh</Icon></button>}/><div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">{live.error&&<p role="alert" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{live.error}</p>}<Card><LiveLocation/></Card></div></>;
 }
 
 

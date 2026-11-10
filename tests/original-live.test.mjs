@@ -20,7 +20,7 @@ try{
  await page.getByRole('heading',{name:"Gly's Room",exact:true}).waitFor();
  assert.equal(await page.locator('.leaflet-container').count(),0);
  await page.screenshot({path:'../../outputs/SmartStep-original-layout.png',fullPage:true});
- async function query(next){source=next;await page.getByRole('button',{name:'查询当前位置',exact:true}).click();await page.getByRole('button',{name:'查询当前位置',exact:true}).waitFor({state:'visible'});}
+ async function query(next){source=next;await page.getByRole('button',{name:'刷新当前位置',exact:true}).click();await page.getByRole('button',{name:'刷新当前位置',exact:true}).waitFor({state:'visible'});}
  await query('gps');await page.locator('.leaflet-container').waitFor();
  await query('lte');await page.getByText('范围半径约 550 米',{exact:true}).waitFor();
  await query('wifi');await page.getByRole('heading',{name:"Gly's Room",exact:true}).waitFor();assert.equal(await page.locator('.leaflet-container').count(),0);
