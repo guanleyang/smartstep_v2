@@ -8,7 +8,7 @@ import { useLanguage } from "./language";
 export type Location = {
   device_id: string; latitude?: number; longitude?: number;
   source: "gps" | "wifi" | "lte" | "unavailable"; zone_id?: string; zone_name?: string; accuracy_m?: number;
-  pdop: number | null; battery_percent: number | null;
+  pdop: number | null; battery_percent: number | null; battery_percent_source?: "cloud_estimate";
   battery_voltage_v?: number | null;
   battery_current_ma?: number | null;
   wifi_status?: "confirmed" | "held"; wifi_age_ms?: number; wifi_confirmed_at?: number;

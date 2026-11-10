@@ -35,7 +35,7 @@ const date = (value?: number) => typeof value === "number" && Number.isFinite(va
       <Row label={t("电池电压","Battery voltage")} value={battery.voltage}/>
       <Row label={t("电池净电流","Net battery current")} value={battery.current}/>
       <Row label={t("电池状态","Battery state")} value={battery.stale && battery.available ? t(`上次上报 · ${battery.state}`, `Last report · ${battery.state}`) : battery.state}/>
-      <Row label={t("电量","Battery level")} value={measurement(fix?.battery_percent,100,"%",1)}/>
+      <Row label={t("估算电量","Estimated battery level")} value={battery.level}/>
       <Row label={t("定位方式","Location source")} value={source}/>
       {fix?.source === "wifi" && <Row label={t("室内位置","Indoor location")} value={(fix.zone_name&&indoorName(fix.zone_name,lang)) || t("未上报","Not reported")}/>}
       {fix?.source === "wifi" && <Row label={t("室内位置状态","Indoor location status")} value={fix.wifi_status === "held" ? t("保留上次确认位置","Last confirmed location") : t("已匹配","Matched")}/>}

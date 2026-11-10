@@ -107,9 +107,8 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
   const {t,lang}=useLanguage();
   const live=useLiveDevice(); const fix=live.location;
   const source=fix?({gps:'GPS',wifi:t("Wi-Fi 室内定位","Wi-Fi indoor location"),lte:t("LTE 预估位置","LTE estimate"),unavailable:t("暂无位置","No location")}[fix.source]):t("等待数据","Waiting for data");
-  const level=fix?.battery_percent;
   const readings = batteryReadings(fix,t);
-  const batteryValue = level == null ? readings.voltage : level + "%";
+  const batteryValue = readings.percent ?? readings.voltage;
   const batteryStatus = readings.available
     ? (readings.stale ? t("上次上报 · ","Last report · ") : "") + readings.state + " · " + readings.current
     : t("等待设备上报","Waiting for a device report");
@@ -174,7 +173,7 @@ function DetailPage({ detail, battery, onClose, setDetail }: { detail: Exclude<D
      <InfoRow label={t("电池电压","Battery voltage")}>{readings.voltage}</InfoRow>
      <InfoRow label={t("电池净电流","Net battery current")}>{readings.current}</InfoRow>
      <InfoRow label={t("电池状态","Battery state")}>{readings.state}</InfoRow>
-     <InfoRow label={t("电量","Battery level")}>{fix?.battery_percent==null?t("未上报","Not reported"):fix.battery_percent+'%'}</InfoRow>
+     <InfoRow label={t("估算电量","Estimated battery level")}>{readings.level}</InfoRow>
      <p className="mt-3 text-xs text-slate-500">{t("正值表示净放电，负值表示净充电。","Positive current means discharging. Negative current means charging.")}</p>
      <button onClick={()=>setDetail('device')} className="mt-4 text-sm font-bold text-[#3949AB]">{t("查看远程状态 ›","View remote status ›")}</button>
    </>:<RemoteStatus/>}</Card></div>

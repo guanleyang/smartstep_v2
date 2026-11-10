@@ -48,6 +48,28 @@ export function normalize(body, device, now=Date.now()) {
   }
   return result;
 }
+// Snapshot estimate for the HPPC-calibrated 1100 mAh pack. Positive current is discharge.
+// Steady-load correction approximates the unknown polarization from sparse reports.
+const ocv = [3.254394, 3.485397, 3.560744, 3.619591, 3.674730, 3.757398,
+  3.837083, 3.885989, 3.971955, 4.034629, 4.149641];
+
+export function withBatteryEstimate(data) {
+  const v = data.battery_voltage_v;
+  const i = data.battery_current_ma;
+  if (data.battery_percent != null || !Number.isFinite(v) || v < 2.75 || v > 4.25 ||
+      !Number.isFinite(i) || Math.abs(i) > 840) return data;
+
+  const compensated = v + (i / 1000) * (0.174976 + 0.058671);
+  let k = 0;
+  while (k < ocv.length - 2 && compensated > ocv[k + 1]) k++;
+  const percent = 10 * (k + (compensated - ocv[k]) / (ocv[k + 1] - ocv[k]));
+  return {
+    ...data,
+    battery_percent: Math.max(0, Math.min(100, Math.round(percent / 5) * 5)),
+    battery_percent_source: "cloud_estimate",
+  };
+}
+
 export default {async fetch(request,env) {
   const origin=request.headers.get('Origin');
   const headers={'Content-Type':'application/json','Cache-Control':'no-store',Vary:'Origin'};
@@ -69,7 +91,7 @@ export default {async fetch(request,env) {
       const row=await env.DB.prepare('SELECT payload FROM hybrid_locations WHERE device_id=?').bind(match[1]).first();
       if(!row)return reply(404,{error:'No location received yet'});
       const data=JSON.parse(row.payload);
-      return reply(200,{...data,stale:Date.now()-data.recorded_at>120000||Date.now()-data.received_at>120000||(data.source==='wifi'&&data.wifi_confirmed_at!==undefined&&Date.now()-data.wifi_confirmed_at>=120000)});
+      return reply(200,{...withBatteryEstimate(data),stale:Date.now()-data.recorded_at>120000||Date.now()-data.received_at>120000||(data.source==='wifi'&&data.wifi_confirmed_at!==undefined&&Date.now()-data.wifi_confirmed_at>=120000)});
     }
     if(request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='application/json')return reply(415,{error:'Use application/json'});
     const reader=request.body?.getReader();if(!reader)return reply(400,{error:'Missing body'});
