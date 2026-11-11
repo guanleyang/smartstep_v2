@@ -2,6 +2,7 @@ export const OUTDOOR_DANGER = Object.freeze({id:'outdoor_red_circle',name:'室�
 export const INDOOR_DANGERS = Object.freeze([
   {id:'Canteen_B_South_Spine',name:'Canteen B South Spine'},
   {id:'Garage_EEE',name:'Garage EEE'},
+  {id:'TR69_door',name:'TR69 门口'},
 ]);
 export function distanceMeters(a,b) {
   const rad=x=>x*Math.PI/180, dlat=rad(b.latitude-a.latitude),dlon=rad(b.longitude-a.longitude);

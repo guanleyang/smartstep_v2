@@ -3,9 +3,12 @@ import {createDangerTracker,dangerZonesFor,distanceMeters,OUTDOOR_DANGER} from '
 const now=1800000000000;
 const wifi=(zone,stamp=now)=>({device_id:'shoe_001',source:'wifi',zone_id:zone,zone_name:zone,recorded_at:stamp,received_at:stamp,wifi_status:'confirmed',wifi_confirmed_at:stamp,stale:false});
 const gps=(meters,stamp=now)=>({device_id:'shoe_001',source:'gps',latitude:OUTDOOR_DANGER.latitude+meters/111195.0802,longitude:OUTDOOR_DANGER.longitude,recorded_at:stamp,received_at:stamp,stale:false});
-test('only the two named indoor zones are dangerous; legacy zone names still work',()=>{
+test('configured indoor zones are dangerous; legacy zone names still work',()=>{
  assert.equal(dangerZonesFor(wifi('Garage_EEE'))[0].name,'Garage EEE');
  assert.equal(dangerZonesFor(wifi('Canteen_B_South_Spine'))[0].name,'Canteen B South Spine');
+ assert.equal(dangerZonesFor(wifi('TR69_door'))[0].name,'TR69 门口');
+ assert.equal(dangerZonesFor({...wifi(undefined),zone_name:'TR69 门口'})[0].id,'TR69_door');
+ assert.deepEqual(dangerZonesFor(wifi('TR67_door')),[]);
  assert.deepEqual(dangerZonesFor(wifi('TR62_inside')),[]);
  assert.equal(dangerZonesFor({...wifi(undefined),zone_name:'Garage EEE'}).length,1);
 });
