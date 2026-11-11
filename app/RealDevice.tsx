@@ -5,6 +5,8 @@ import { ensureLeafletStyles } from "./leaflet-styles";
 import type { CircleZone } from "./custom-zones";
 import { useLanguage } from "./language";
 
+export const LTE_DISPLAY_RADIUS_M = 200;
+
 export type Location = {
   device_id: string; latitude?: number; longitude?: number;
   source: "gps" | "wifi" | "lte" | "unavailable"; zone_id?: string; zone_name?: string; accuracy_m?: number;
@@ -33,8 +35,8 @@ export function DeviceMap({ location, compact = false, circles }: { location: Lo
       L.control.zoom({zoomInTitle:t("放大","Zoom in"),zoomOutTitle:t("缩小","Zoom out")}).addTo(map);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         { attribution: "© OpenStreetMap contributors", maxZoom: 19 }).addTo(map);
-      if (location.source === "lte" && location.accuracy_m) {
-        const circle = L.circle(point, { radius: location.accuracy_m, color: "#d97706", fillOpacity: .15 }).addTo(map);
+      if (location.source === "lte") {
+        const circle = L.circle(point, { radius: LTE_DISPLAY_RADIUS_M, color: "#d97706", fillOpacity: .15 }).addTo(map);
         map.fitBounds(circle.getBounds(), { padding: [24,24], maxZoom: 16, animate: false });
       } else L.circleMarker(point, { radius: 10, color: "#3949AB", fillOpacity: .8 }).addTo(map);
       for (const zone of circles) {
@@ -44,7 +46,7 @@ export function DeviceMap({ location, compact = false, circles }: { location: Lo
       }
     }).catch(() => { if (!disposed) setError("map"); });
     return () => { disposed = true; map?.remove(); };
-  }, [location.latitude, location.longitude, location.source, location.accuracy_m, compact, circles, lang]);
+  }, [location.latitude, location.longitude, location.source, compact, circles, lang]);
   return <div className="relative"><div ref={element} className="w-full rounded-xl" style={{ height: compact ? 250 : 520 }} aria-label={t("鞋子最新上报位置","Latest reported shoe location")} />{error && <p className="text-sm text-amber-700 mt-2" role="status">{t("地图暂时无法加载，请查看下方坐标。","The map could not load. See the coordinates below.")}</p>}</div>;
 }
 

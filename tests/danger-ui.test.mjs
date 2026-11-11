@@ -32,7 +32,7 @@ try{
  await closeToast();await page.setViewportSize({width:1440,height:1000});await page.waitForFunction(()=>document.querySelector("main > .min-h-dvh").getBoundingClientRect().left>=75);await page.screenshot({path:'../../outputs/SmartStep-danger-outdoor-desktop.png',fullPage:true});
  await query('outside');await page.getByLabel('危险区状态',{exact:true}).waitFor({state:'detached'});
  await query('gps');await page.getByRole('alert').filter({hasText:'已进入 室外危险区'}).waitFor();await page.waitForFunction(()=>window.__systemAlerts.length===4);await closeToast();
- await query('lte');await page.getByText('范围半径约 550 米',{exact:true}).waitFor();assert.equal(await page.getByLabel('危险区状态',{exact:true}).count(),0);assert.equal(await systemCount(),4);
+ await query('lte');await page.getByText('显示半径 200 米',{exact:true}).waitFor();assert.equal(await page.getByLabel('危险区状态',{exact:true}).count(),0);assert.equal(await systemCount(),4);
  await query('stale');await page.getByText('最后已知位置，当前数据已过期或连接中断。',{exact:true}).waitFor();assert.equal(await systemCount(),4);
  await page.getByRole('button',{name:'通知',exact:true}).click();assert.equal(await page.getByRole('button').filter({hasText:/已进入/}).count(),4);
  await page.getByRole('button',{name:'全部已读',exact:true}).click();assert.equal(await page.getByText('未读',{exact:true}).count(),0);

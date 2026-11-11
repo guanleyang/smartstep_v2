@@ -25,7 +25,7 @@ try{
  state='new';await page.getByRole('heading',{name:'TR65 门口',exact:true}).waitFor({timeout:4500});assert.equal(await page.getByText('暂未匹配到新位置，保留上次确认的室内位置。',{exact:true}).count(),0);
  state='gps';await page.locator('.leaflet-container').waitFor({timeout:4500});
  state='waiting';await page.getByText('正在寻找室内位置，连续2分钟未匹配后尝试LTE。',{exact:true}).waitFor({timeout:4500});assert.equal(await page.locator('.leaflet-container').count(),0);
- state='lte';await page.getByText('范围半径约 550 米',{exact:true}).waitFor({timeout:4500});
+ state='lte';await page.getByText('显示半径 200 米',{exact:true}).waitFor({timeout:4500});
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);
  console.log('PASS automatic 2s polling, held timestamp, immediate new point display, GPS map, waiting and LTE views.');
 }finally{await browser.close();}

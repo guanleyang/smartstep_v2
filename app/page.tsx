@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import RealDevice, { DeviceMap, useLiveDevice } from "./RealDevice";
+import RealDevice, { DeviceMap, LTE_DISPLAY_RADIUS_M, useLiveDevice } from "./RealDevice";
 import { LanguageProvider, useLanguage, indoorName } from "./language";
 import RemoteStatus from "./RemoteStatus";
 import { batteryReadings } from "./battery-readings";
@@ -95,7 +95,7 @@ function LiveLocation({ compact=false }: {compact?: boolean}) {
       <p className="mt-3 text-sm text-slate-500">{t("GPS信号不稳定，采用室内定位","GPS signal is weak. Using indoor positioning.")}</p>
       {fix.wifi_status==='held'&&<p className="mt-3 text-sm text-slate-600">{t("暂未匹配到新位置，保留上次确认的室内位置。","No new match. Showing the last confirmed indoor location.")}</p>}
     </div>:fix.source==='unavailable'?<p className="rounded-xl bg-slate-50 p-8 text-sm text-slate-500">{fix.status_reason==='waiting_wifi'?t("正在寻找室内位置，连续2分钟未匹配后尝试LTE。","Looking for an indoor location. LTE starts after two minutes without a match."):t("暂无可用位置。","No location available.")}</p>:<>
-      <div className="flex items-center justify-between gap-3 text-sm"><b>{fix.source==='gps'?t("GPS位置","GPS location"):t("预估位置 · LTE","Estimated location · LTE")}</b>{fix.source==='lte'&&<span className="text-xs text-amber-700">{t(`范围半径约 ${Math.round(fix.accuracy_m!)} 米`, `Approx. ${Math.round(fix.accuracy_m!)} m radius`)}</span>}</div>
+      <div className="flex items-center justify-between gap-3 text-sm"><b>{fix.source==='gps'?t("GPS位置","GPS location"):t("预估位置 · LTE","Estimated location · LTE")}</b>{fix.source==='lte'&&<span className="text-xs text-amber-700">{t(`显示半径 ${LTE_DISPLAY_RADIUS_M} 米`, `Display radius: ${LTE_DISPLAY_RADIUS_M} m`)}</span>}</div>
       <DeviceMap location={fix} compact={compact} circles={circles}/>
       <p className="text-sm font-mono text-slate-600">{fix.latitude?.toFixed(6)}, {fix.longitude?.toFixed(6)}</p>
     </>}
