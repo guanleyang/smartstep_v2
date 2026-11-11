@@ -1,4 +1,4 @@
-export const OUTDOOR_DANGER = Object.freeze({id:'outdoor_red_circle',name:'室外危险区',latitude:1.341917,longitude:103.680252,radius_m:75});
+export const OUTDOOR_DANGER = Object.freeze({id:'outdoor_red_circle',name:'室外危险区',latitude:1.341917,longitude:103.680252,radius_m:100});
 export const INDOOR_DANGERS = Object.freeze([
   {id:'Canteen_B_South_Spine',name:'Canteen B South Spine'},
   {id:'Garage_EEE',name:'Garage EEE'},
