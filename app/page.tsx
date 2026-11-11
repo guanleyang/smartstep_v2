@@ -108,22 +108,28 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
   const live=useLiveDevice(); const fix=live.location;
   const source=fix?({gps:'GPS',wifi:t("Wi-Fi 室内定位","Wi-Fi indoor location"),lte:t("LTE 预估位置","LTE estimate"),unavailable:t("暂无位置","No location")}[fix.source]):t("等待数据","Waiting for data");
   const readings = batteryReadings(fix,t);
-  const batteryValue = readings.percent ?? readings.voltage;
-  const batteryStatus = readings.available
-    ? (readings.stale ? t("上次上报 · ","Last report · ") : "") + readings.state + " · " + readings.current
-    : t("等待设备上报","Waiting for a device report");
+  const charging = readings.charging && !readings.stale;
+  const batteryLabel = charging ? t("预计充满时间", "Estimated time to full") : t("电池", "Battery");
+  const batteryValue = charging
+    ? readings.fullTime ?? t("暂无法估算", "Estimate unavailable")
+    : readings.percent ?? readings.voltage;
+  const batteryStatus = readings.stale && readings.available
+    ? t("上次上报", "Last report")
+    : readings.usableTime
+      ? t(`预计可用 ${readings.usableTime}`, `Estimated runtime · ${readings.usableTime}`)
+      : readings.available ? readings.state : t("等待设备上报", "Waiting for a device report");
   return <>
     <Header title={t("概览","Overview")} action={<button onClick={live.query} disabled={!live.connected||live.loading} className="icon-button" aria-label={t("刷新当前位置","Refresh current location")}><Icon>refresh</Icon></button>}/>
     <div className="mx-auto max-w-[1500px] p-3.5 sm:p-6 lg:p-8">
       <div className="mb-7 hidden items-center justify-between gap-4 sm:flex"><div><h2 className="text-2xl font-extrabold tracking-tight text-slate-900">SmartStep #001</h2><p className="mt-1 text-sm text-slate-500">{live.status}</p></div><button onClick={()=>setTab('settings')} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-[#1A237E]">{t("设备设置","Device settings")}</button></div>
       <section className="relative mb-4 overflow-hidden rounded-[26px] bg-gradient-to-br from-[#111858] via-[#202a82] to-[#5264d8] p-5 text-white shadow-lg sm:hidden">
         <p className="text-xs font-bold text-indigo-200">SmartStep #001</p><h2 className="mt-2 text-2xl font-black">{live.status}</h2>
-        <div className="mt-5 grid grid-cols-2 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/10 py-3"><button type="button" className="px-3 text-left" onClick={()=>setDetail('battery')}><p className="text-[10px] text-indigo-200">{t("电池","Battery")}</p><p className="mt-1 text-sm font-bold">{batteryValue}</p><p className="mt-1 text-xs text-indigo-200">{batteryStatus}</p></button><div className="px-3"><p className="text-[10px] text-indigo-200">{t("位置","Location")}</p><p className="mt-1 text-sm font-bold">{source}</p></div></div>
+        <div className="mt-5 grid grid-cols-2 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/10 py-3"><button type="button" className="px-3 text-left" onClick={()=>setDetail('battery')}><p className="text-[10px] text-indigo-200">{batteryLabel}</p><p className="mt-1 text-sm font-bold">{batteryValue}</p>{!charging && <p className="mt-1 text-xs text-indigo-200">{batteryStatus}</p>}</button><div className="px-3"><p className="text-[10px] text-indigo-200">{t("位置","Location")}</p><p className="mt-1 text-sm font-bold">{source}</p></div></div>
       </section>
       {live.error&&<p role="alert" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{live.error}</p>}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:gap-6">
         <Card onClick={()=>setDetail('device')} className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("设备状态","Device status")}</p><div className="mt-4 flex items-center gap-3"><span className="grid size-12 place-items-center rounded-2xl bg-indigo-50 text-[#1A237E]"><Icon>directions_walk</Icon></span><div><p className="text-xl font-extrabold text-slate-800">{live.status}</p><p className="mt-1 text-xs text-slate-400">{t("shoe_001 · 4G 上传","shoe_001 · 4G upload")}</p></div></div></Card>
-        <Card onClick={()=>setDetail('battery')} className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("电池","Battery")}</p><p className="mt-4 text-3xl font-black text-slate-700">{batteryValue}</p><p className="mt-3 text-xs text-slate-500">{batteryStatus}</p></Card>
+        <Card onClick={()=>setDetail('battery')} className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{batteryLabel}</p><p className="mt-4 text-3xl font-black text-slate-700">{batteryValue}</p>{!charging && <p className="mt-3 text-xs text-slate-500">{batteryStatus}</p>}</Card>
         <Card className="hidden min-h-[176px] sm:block"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("定位方式","Location source")}</p><p className="mt-4 text-xl font-extrabold text-[#1A237E]">{source}</p><p className="mt-3 text-xs text-slate-400">GPS → Wi-Fi → LTE</p></Card>
         <Card className="md:col-span-2 lg:col-span-2"><div className="mb-4 flex items-center justify-between"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("当前位置","Current location")}</p><button onClick={()=>setTab('map')} className="text-xs font-bold text-[#3949AB]">{t("查看位置 ›","View location ›")}</button></div><LiveLocation compact/></Card>
         <Card><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">{t("快捷操作","Quick actions")}</p><div className="mt-5 grid grid-cols-2 gap-3">{[['my_location',t("刷新位置","Refresh location"),live.query],['tune',t("设备连接","Connect device"),()=>setTab('settings')],['battery_charging_full',t("电池信息","Battery details"),()=>setDetail('battery')],['monitor_heart',t("远程状态","Remote status"),()=>setDetail('device')]].map(([icon,label,action])=><button key={label as string} onClick={action as ()=>void} className="flex min-h-24 flex-col items-start justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-xs font-bold text-slate-600"><Icon className="text-[#3949AB]">{icon as string}</Icon>{label as string}</button>)}</div></Card>
@@ -174,6 +180,8 @@ function DetailPage({ detail, battery, onClose, setDetail }: { detail: Exclude<D
      <InfoRow label={t("电池净电流","Net battery current")}>{readings.current}</InfoRow>
      <InfoRow label={t("电池状态","Battery state")}>{readings.state}</InfoRow>
      <InfoRow label={t("估算电量","Estimated battery level")}>{readings.level}</InfoRow>
+     {readings.charging && !readings.stale && <InfoRow label={t("预计充满时间","Estimated time to full")}>{readings.fullTime ?? t("暂无法估算","Estimate unavailable")}</InfoRow>}
+     {readings.usableTime && <InfoRow label={t("预计可用时间","Estimated runtime")}>{readings.usableTime}</InfoRow>}
      <p className="mt-3 text-xs text-slate-500">{t("正值表示净放电，负值表示净充电。","Positive current means discharging. Negative current means charging.")}</p>
      <button onClick={()=>setDetail('device')} className="mt-4 text-sm font-bold text-[#3949AB]">{t("查看远程状态 ›","View remote status ›")}</button>
    </>:<RemoteStatus/>}</Card></div>
