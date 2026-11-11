@@ -12,10 +12,10 @@ test('configured indoor zones are dangerous; legacy zone names still work',()=>{
  assert.deepEqual(dangerZonesFor(wifi('TR62_inside')),[]);
  assert.equal(dangerZonesFor({...wifi(undefined),zone_name:'Garage EEE'}).length,1);
 });
-test('outdoor circle is 50m radius, not diameter, and latitude/longitude are not swapped',()=>{
- assert.equal(OUTDOOR_DANGER.latitude,1.341917);assert.equal(OUTDOOR_DANGER.longitude,103.680252);assert.equal(OUTDOOR_DANGER.radius_m,50);
- assert.ok(Math.abs(distanceMeters(gps(49),OUTDOOR_DANGER)-49)<.01);
- assert.equal(dangerZonesFor(gps(49)).length,1);assert.equal(dangerZonesFor(gps(51)).length,0);
+test('outdoor circle is 75m radius, not diameter, and latitude/longitude are not swapped',()=>{
+ assert.equal(OUTDOOR_DANGER.latitude,1.341917);assert.equal(OUTDOOR_DANGER.longitude,103.680252);assert.equal(OUTDOOR_DANGER.radius_m,75);
+ assert.ok(Math.abs(distanceMeters(gps(74),OUTDOOR_DANGER)-74)<.01);
+ assert.equal(dangerZonesFor(gps(74)).length,1);assert.equal(dangerZonesFor(gps(76)).length,0);
  assert.equal(dangerZonesFor({...gps(0),source:'lte',accuracy_m:550}).length,0);
 });
 test('enter once, stable polling does not repeat, confirmed exit rearms',()=>{
@@ -34,10 +34,10 @@ test('unknown/coarse data does not falsely signal an exit and retrigger on recov
  assert.equal(t.observe(gps(0,now+20000),now+20000).length,0);
 });
 test('GPS boundary jitter has 5m exit hysteresis; real exit and reentry alert',()=>{
- const t=createDangerTracker();assert.equal(t.observe(gps(49),now).length,1);
- t.observe(gps(52,now+10000),now+10000);
+ const t=createDangerTracker();assert.equal(t.observe(gps(74),now).length,1);
+ t.observe(gps(77,now+10000),now+10000);
  assert.equal(t.observe(gps(24,now+20000),now+20000).length,0);
- t.observe(gps(56,now+30000),now+30000);
+ t.observe(gps(81,now+30000),now+30000);
  assert.equal(t.observe(gps(24,now+40000),now+40000).length,1);
 });
 test('devices are tracked separately and older responses cannot rearm a zone',()=>{
